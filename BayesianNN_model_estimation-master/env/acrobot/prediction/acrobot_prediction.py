@@ -1,9 +1,12 @@
 import numpy as np
 import tensorflow as tf
+#from tensorflow import keras #EDIT
 import tensorflow_probability as tfp
 import matplotlib.pyplot as plt
 import pickle
 import math
+import sys
+sys.path.append('C:\\Users\\PC\\Documents\\py\\bnn') #EDIT
 from common.data_normalization import z_score_normalize, z_score_denormalize
 from common.BNN import BNN
 
@@ -61,9 +64,9 @@ validation_data = np.append(validation_data, np.asarray(acts).reshape((len(valid
 
 '''Neural net structure'''
 neural_net_ang = tf.keras.Sequential([
-    tfp.layers.DenseFlipout(200, activation=tf.nn.relu),
+    tfp.layers.DenseFlipout(256, activation=tf.nn.relu), #EDIT200
     tf.keras.layers.Dropout(rate=0.05),
-    tfp.layers.DenseFlipout(200, activation=tf.nn.relu),
+    tfp.layers.DenseFlipout(256, activation=tf.nn.relu), #EDIT200
     tf.keras.layers.Dropout(rate=0.05),
     tfp.layers.DenseFlipout(2),
 ])
@@ -99,6 +102,7 @@ if __name__ == "__main__":
         vels.append(validation_data[0][2:4])
         state = np.array(validation_data[0])
         nor_state = z_score_normalize(np.asarray([state]), x_nor_arr[0], x_nor_arr[1])
+        print(nor_state) #EDIT
         for i in range(len(validation_data)-1):
             (ang_delta, vel_delta) = sess.run((y_ang_delta_pre, y_vel_delta_pre), feed_dict={x: nor_state})
             ang_delta = z_score_denormalize(ang_delta, y_nor_arr_ang[0], y_nor_arr_ang[1])[0]  # denormalize
