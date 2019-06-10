@@ -10,7 +10,7 @@ import pickle
 
 
 class BNN:
-    def __init__(self, lr=0.0001, dropout_p=0.1, batch_size=128, nn_type='0'):
+    def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
         :param dropout_p: dropout probability
@@ -53,6 +53,29 @@ class BNN:
                 tfp.layers.DenseFlipout(self.output_dim),
             ])
 
+        elif self.nn_type == '2':
+        #     self.neural_net = tf.keras.Sequential([
+        #         tf.keras.layers.Dense(256, activation=tf.nn.selu),
+        #         tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+        #         tf.keras.layers.Dropout(rate=self.dropout_p),
+        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+        #         tf.keras.layers.Dropout(rate=self.dropout_p),
+        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+        #         tf.keras.layers.Dropout(rate=self.dropout_p),
+        #         tfp.layers.DenseFlipout(self.output_dim),
+        #     ])
+
+            self.neural_net = tf.keras.Sequential([
+                tf.keras.layers.Dense(256, activation=tf.nn.selu),
+                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+                tf.keras.layers.Dense(256, activation=tf.nn.selu),
+                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+                tf.keras.layers.Dense(256, activation=tf.nn.selu),
+                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+                tf.keras.layers.Dense(256, activation=tf.nn.selu),
+            ])
+
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
         """
         Add dataset and get the input and output dimensions
@@ -84,7 +107,8 @@ class BNN:
         xs, ys = feedable_iterator.get_next()
         return xs, ys, handle, training_iterator, heldout_iterator
 
-    def train(self, save_path, save_step=500000, var=0.00001, training_step=10000000, normalization=True, normalization_type='z_score', decay='False'):
+    def train(self, save_path, save_step=5000, var=0.00001, training_step=10000000, normalization=True, normalization_type='z_score', decay='False'
+        , load_path=None):
         """
         :param save_path: where to save the weighs and bias as well as normalization parameters
         :param save_step: save model per 500000(default) steps
@@ -134,7 +158,7 @@ class BNN:
             labels=ys, predictions=predictions)
 
         with tf.name_scope("train"):
-            if decay == 'True':
+            if decay == 'True': #Add learning rate decay
                 global_step = tf.Variable(0, trainable=False)
                 learning_rate = tf.train.exponential_decay(self.lr, global_step, 100000, 0.965, staircase=True)
                 optimizer = tf.compat.v1.train.AdamOptimizer(
@@ -151,6 +175,9 @@ class BNN:
 
         with tf.Session() as sess:
             sess.run(init_op)
+            if load_path: 
+                print("LOADING WEIGHTS")
+                self.neural_net.load_weights(load_path+'/weights/BNN_weights')
             # sess.graph.finalize()
             # Run the training loop.
             train_handle = sess.run(training_iterator.string_handle())
@@ -161,11 +188,12 @@ class BNN:
                                     feed_dict={handle: train_handle})
                 if step % 100 == 0:
                     loss_value, accuracy_value = sess.run(
-                        [elbo_loss, accuracy], feed_dict={handle: heldout_handle})
+                        [elbo_loss, accuracy], feed_dict={handle: heldout_handle}) #Measure accuracy against heldout data
                     print("Step: {:>3d} Loss: {:.3f} Accuracy: {:.5f}".format(
                         step, loss_value, accuracy_value))
-                if step % save_step == 0:
-                    self.neural_net.save_weights(save_path+'/weights/BNN_weights')
+                if step % save_step == 0 and step != 0:
+                    print("Saving weights")
+                    self.neural_net.save_weights(save_path+'/weights/BNN_weights') #Save weights 
 
 
 

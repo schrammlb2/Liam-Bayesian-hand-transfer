@@ -11,8 +11,8 @@ from common.data_normalization import z_score_normalize, z_score_denormalize
 from common.BNN import BNN
 
 tf.keras.backend.set_floatx('float64')  # for input weights of NN
-ang_model_path = '../../../save_model/acrobot/ang'  # use to import weights and normalization arrays
-vel_model_path = '../../../save_model/acrobot/vel'
+ang_model_path = 'save_model/acrobot/ang'  # use to import weights and normalization arrays
+vel_model_path = 'save_model/acrobot/vel'
 test_traj = 1
 
 PRE_START = 0  # prediction start point
@@ -21,10 +21,10 @@ VAR_ANG = [0.00001, 0.00001]
 VAR_VEL = [0.00001, 0.00001]
 
 
-with open('../../../data/acrobot/test_trajectory/acrobot_ao_rrt_traj' + str(test_traj), 'rb') as pickle_file:
+with open('data/acrobot/test_trajectory/acrobot_ao_rrt_traj' + str(test_traj), 'rb') as pickle_file:
     gt = pickle.load(pickle_file)
 
-with open('../../../data/acrobot/test_trajectory/acrobot_ao_rrt_plan' + str(test_traj), 'rb') as pickle_file:
+with open('data/acrobot/test_trajectory/acrobot_ao_rrt_plan' + str(test_traj), 'rb') as pickle_file:
     acts = pickle.load(pickle_file)
 
 
@@ -64,9 +64,9 @@ validation_data = np.append(validation_data, np.asarray(acts).reshape((len(valid
 
 '''Neural net structure'''
 neural_net_ang = tf.keras.Sequential([
-    tfp.layers.DenseFlipout(256, activation=tf.nn.relu), #EDIT200
+    tfp.layers.DenseFlipout(200, activation=tf.nn.relu), #EDIT200
     tf.keras.layers.Dropout(rate=0.05),
-    tfp.layers.DenseFlipout(256, activation=tf.nn.relu), #EDIT200
+    tfp.layers.DenseFlipout(200, activation=tf.nn.relu), #EDIT200
     tf.keras.layers.Dropout(rate=0.05),
     tfp.layers.DenseFlipout(2),
 ])
