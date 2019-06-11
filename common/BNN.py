@@ -53,29 +53,6 @@ class BNN:
                 tfp.layers.DenseFlipout(self.output_dim),
             ])
 
-        elif self.nn_type == '2':
-        #     self.neural_net = tf.keras.Sequential([
-        #         tf.keras.layers.Dense(256, activation=tf.nn.selu),
-        #         tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-        #         tf.keras.layers.Dropout(rate=self.dropout_p),
-        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-        #         tf.keras.layers.Dropout(rate=self.dropout_p),
-        #         tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-        #         tf.keras.layers.Dropout(rate=self.dropout_p),
-        #         tfp.layers.DenseFlipout(self.output_dim),
-        #     ])
-
-            self.neural_net = tf.keras.Sequential([
-                tf.keras.layers.Dense(256, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(256, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(256, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(256, activation=tf.nn.selu),
-            ])
-
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
         """
         Add dataset and get the input and output dimensions

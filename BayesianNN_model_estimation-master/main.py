@@ -1,2 +1,0 @@
-import env.robotic_hand_simulator.prediction.prediction_s1_mod
-
