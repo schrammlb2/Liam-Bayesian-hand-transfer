@@ -51,15 +51,15 @@ def map_angle(state):
 
 
 with open(ang_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    x_nor_arr, y_nor_arr_ang = pickle.load(pickle_file)
+    x_norm_arr, y_norm_arr_ang = pickle.load(pickle_file)
 
 with open(vel_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    y_nor_arr_vel = pickle.load(pickle_file)[1]
+    y_norm_arr_vel = pickle.load(pickle_file)[1]
 
 
 acts = wrap_acrobot_action(acts)[PRE_START:PRE_END]
-validation_data = np.asarray(gt[:-1])
-validation_data = np.append(validation_data, np.asarray(acts).reshape((len(validation_data), 1)), axis=1)
+ground_truth = np.asarray(gt[:-1])
+ground_truth = np.append(ground_truth, np.asarray(acts).reshape((len(ground_truth), 1)), axis=1)
 
 
 '''Neural net structure'''
@@ -98,29 +98,29 @@ if __name__ == "__main__":
         neural_net_vel.load_weights(vel_model_path+"/weights/BNN_weights")
         angs = []  # prediction in angle space
         vels = []  # prediction in velocity space
-        angs.append(validation_data[0][:2])
-        vels.append(validation_data[0][2:4])
-        state = np.array(validation_data[0])
-        nor_state = z_score_normalize(np.asarray([state]), x_nor_arr[0], x_nor_arr[1])
-        print(nor_state) #EDIT
-        for i in range(len(validation_data)-1):
-            (ang_delta, vel_delta) = sess.run((y_ang_delta_pre, y_vel_delta_pre), feed_dict={x: nor_state})
-            ang_delta = z_score_denormalize(ang_delta, y_nor_arr_ang[0], y_nor_arr_ang[1])[0]  # denormalize
-            vel_delta = z_score_denormalize(vel_delta, y_nor_arr_vel[0], y_nor_arr_vel[1])[0]
+        angs.append(ground_truth[0][:2])
+        vels.append(ground_truth[0][2:4])
+        state = np.array(ground_truth[0])
+        norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
+        print(norm_state) #EDIT
+        for i in range(len(ground_truth)-1):
+            (ang_delta, vel_delta) = sess.run((y_ang_delta_pre, y_vel_delta_pre), feed_dict={x: norm_state})
+            ang_delta = z_score_denormalize(ang_delta, y_norm_arr_ang[0], y_norm_arr_ang[1])[0]  # denormalize
+            vel_delta = z_score_denormalize(vel_delta, y_norm_arr_vel[0], y_norm_arr_vel[1])[0]
             next_ang = state[:2] + ang_delta
             next_vel = state[2:4] + vel_delta
             angs.append(next_ang)
             vels.append(next_vel)
-            state = np.append(np.append(next_ang, next_vel), validation_data[i + 1][4:5])
+            state = np.append(np.append(next_ang, next_vel), ground_truth[i + 1][4:5])
             state = map_angle(state)
-            nor_state = z_score_normalize(np.asarray([state]), x_nor_arr[0], x_nor_arr[1])
+            norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
 
 angs = np.asarray(angs)
 vels = np.asarray(vels)
 
 plt.figure(1)
-plt.scatter(validation_data[0, 0], validation_data[0, 1], marker="*", label='start')
-plt.plot(validation_data[:, 0], validation_data[:, 1], color='blue', label='Ground Truth', marker='.')
+plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
 plt.plot(angs[:, 0], angs[:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- Angle Space')
@@ -128,8 +128,8 @@ plt.legend()
 plt.show()
 
 plt.figure(2)
-plt.scatter(validation_data[0, 2], validation_data[0, 3], marker="*", label='start')
-plt.plot(validation_data[:, 2], validation_data[:, 3], color='blue', label='Ground Truth', marker='.')
+plt.scatter(ground_truth[0, 2], ground_truth[0, 3], marker="*", label='start')
+plt.plot(ground_truth[:, 2], ground_truth[:, 3], color='blue', label='Ground Truth', marker='.')
 plt.plot(vels[:, 0], vels[:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- velocity Space')
