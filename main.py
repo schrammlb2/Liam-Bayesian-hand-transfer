@@ -27,5 +27,5 @@ import env2.acrobot.regression.regression_velocity as task9
 # task4.run()
 
 # task5.run()
-task6.run()
-task7.run()
+# task6.run()
+# task7.run()

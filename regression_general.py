@@ -5,16 +5,35 @@ import pickle
 import numpy as np 
 import pdb
 
-data_type = 'load' #type of data used for this task
+from sys import argv
+
+data_type = 'pos' #type of data used for this task
 task = 'real' #Which task we're training. This tells us what file to use
 skip_step = 1
+
+# _ , arg1, arg2, arg3 = argv
+
+# pdb.set_trace()
+if len(argv) > 1:
+	data_type = argv[1]
+if len(argv) > 2:
+	task = argv[2]
+if len(argv) > 3:
+	skip_step = int(argv[3])
+
+assert data_type in ['pos', 'load']
+assert task in ['real', 'sim']
+assert skip_step in [1,10]
+if (len(argv) > 3 and task == 'real'):
+	print('Err: Skip step only appicable to simulator task. Do not use this argument for \'real\' task')
+	exit(1)
+
 data_type_offset = {'load':2, 'pos':0}
-# task_offset = {'real_old':14, 'real':6, 'simulator':6}
-task_offset = {'real_old':14, 'real':10, 'simulator':6}
+task_offset = {'real_old':14, 'real':10, 'sim':6}
 dt_ofs = data_type_offset[data_type]
 task_ofs = task_offset[task]
 
-if task == 'simulator':
+if task == 'sim':
 	datafile_name = 'data/robotic_hand_simulator/sim_data_discrete_v13_d4_m' + str(skip_step) + '.mat'
 	save_path = 'save_model/robotic_hand_simulator/d4_s' + str(skip_step) + '_' + data_type
 	DATA = scipy.io.loadmat(datafile_name)['D']
@@ -46,5 +65,5 @@ if __name__ == "__main__":
 	neural_network = BNN(nn_type='0')
 	neural_network.add_dataset(x_data, y_data, held_out_percentage=0.1)
 	neural_network.build_neural_net()
-	neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='False')#, load_path=save_path)
+	neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')#, load_path=save_path)
     

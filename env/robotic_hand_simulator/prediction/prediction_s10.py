@@ -22,14 +22,14 @@ with open('../../../data/robotic_hand_simulator/test_trajectory/jt_path'+str(1)+
 gt = trajectory[0][:, :4]
 acts = trajectory[2]
 
-validation_data = np.asarray(gt[:-1])
-validation_data = np.append(validation_data, np.asarray(acts), axis=1)
+ground_truth = np.asarray(gt[:-1])
+ground_truth = np.append(ground_truth, np.asarray(acts), axis=1)
 
 with open(pos_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    x_nor_arr, y_nor_arr_ang = pickle.load(pickle_file)
+    x_norm_arr, y_norm_arr_ang = pickle.load(pickle_file)
 
 with open(load_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    y_nor_arr_vel = pickle.load(pickle_file)[1]
+    y_norm_arr_vel = pickle.load(pickle_file)[1]
 
 '''Neural net structure'''
 neural_net_pos = tf.keras.Sequential([
@@ -65,28 +65,28 @@ if __name__ == "__main__":
         neural_net_load.load_weights(load_model_path+"/weights/BNN_weights")
         poses = []  # prediction in angle space
         loads = []  # prediction in velocity space
-        poses.append(validation_data[0][:2])
-        loads.append(validation_data[0][2:4])
-        state = np.array(validation_data[0])
-        nor_state = z_score_normalize(np.asarray([state]), x_nor_arr[0], x_nor_arr[1])
-        print(nor_state)
-        for i in range(len(validation_data)-1):
-            (pos_delta, load_delta) = sess.run((y_pos_delta_pre, y_load_delta_pre), feed_dict={x: nor_state})
-            pos_delta = z_score_denormalize(pos_delta, y_nor_arr_ang[0], y_nor_arr_ang[1])[0]  # denormalize
-            load_delta = z_score_denormalize(load_delta, y_nor_arr_vel[0], y_nor_arr_vel[1])[0]
+        poses.append(ground_truth[0][:2])
+        loads.append(ground_truth[0][2:4])
+        state = np.array(ground_truth[0])
+        norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
+        print(norm_state)
+        for i in range(len(ground_truth)-1):
+            (pos_delta, load_delta) = sess.run((y_pos_delta_pre, y_load_delta_pre), feed_dict={x: norm_state})
+            pos_delta = z_score_denormalize(pos_delta, y_norm_arr_ang[0], y_norm_arr_ang[1])[0]  # denormalize
+            load_delta = z_score_denormalize(load_delta, y_norm_arr_vel[0], y_norm_arr_vel[1])[0]
             next_pos = state[:2] + pos_delta
             next_load = state[2:4] + load_delta
             poses.append(next_pos)
             loads.append(next_load)
-            state = np.append(np.append(next_pos, next_load), validation_data[i + 1][4:6])
-            nor_state = z_score_normalize(np.asarray([state]), x_nor_arr[0], x_nor_arr[1])
+            state = np.append(np.append(next_pos, next_load), ground_truth[i + 1][4:6])
+            norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
 
 poses = np.asarray(poses)
 loads = np.asarray(loads)
 
 plt.figure(1)
-plt.scatter(validation_data[0, 0], validation_data[0, 1], marker="*", label='start')
-plt.plot(validation_data[:, 0], validation_data[:, 1], color='blue', label='Ground Truth', marker='.')
+plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
 plt.plot(poses[:, 0], poses[:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- pos Space')
@@ -94,8 +94,8 @@ plt.legend()
 plt.show()
 
 plt.figure(2)
-plt.scatter(validation_data[0, 2], validation_data[0, 3], marker="*", label='start')
-plt.plot(validation_data[:, 2], validation_data[:, 3], color='blue', label='Ground Truth', marker='.')
+plt.scatter(ground_truth[0, 2], ground_truth[0, 3], marker="*", label='start')
+plt.plot(ground_truth[:, 2], ground_truth[:, 3], color='blue', label='Ground Truth', marker='.')
 plt.plot(loads[:, 0], loads[:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- load Space')
