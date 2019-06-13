@@ -1,2 +1,4 @@
 cold start	pos	sim_B	0.1	:0.23745756
-cold start	pos	sim	0.1	:0.20084693
+cold start	pos	sim_A	0.1	:0.20084693
+transfer	pos	sim	0.1	:0.204533
+transfer	pos	sim	0.9	:0.007598053

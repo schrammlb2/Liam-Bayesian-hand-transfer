@@ -14,34 +14,44 @@ config = tf.ConfigProto(device_count={'GPU': 0})
 
 tf.keras.backend.set_floatx('float64')  # for input weights of NN
 
-task = 'real_A'
-
+task = 'real'
+transfer_type = 'direct'
 
 if len(argv) > 1:
 	task = argv[1]
+if len(argv) > 2:
+    transfer_type = argv[2]
 
-assert task in ['real_A', 'sim_s1', 'sim_s10']
+assert task in ['real']#, 'sim_s1', 'sim_s10']
+assert transfer_type in ['direct','adaption']
 
 PRE_START = 0  # prediction start point
 PRE_END = None  # prediction end point, None means predict whole trajectory
 VAR_POS = [0.00001, 0.00001]
 VAR_LOAD = [0.00001, 0.00001]
 state_dim = 4
-if task == 'real_A':
+if task == 'real':
 	act_dim = 6
 else:
 	act_dim=2
 
 
 #Set up the appropriate file paths for each of the tasks
-model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
+direct_loc_map = {'real': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
 	'sim_s1' : ('save_model/robotic_hand_simulator/A/d4_s1_pos', 'save_model/robotic_hand_simulator/A/d4_s1_load'),
 	'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
 	}
-trajectory_path_map = {'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
-	'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
-	'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
+adaption_loc_map = {'real': ('save_model/robotic_hand_real/transfer/pos', 'save_model/robotic_hand_real/transfer/load')#,
+    # 'sim_s1' : ('save_model/robotic_hand_simulator/d4_s1_pos', 'save_model/robotic_hand_simulator/d4_s1_load'),
+    # 'sim_s10' : ('save_model/robotic_hand_simulator/d4_s10_pos', 'save_model/robotic_hand_simulator/d4_s10_load')
+    }
+trajectory_path_map = {'real': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl'
 	}
+if transfer_type == 'direct': 
+    model_loc_map = direct_loc_map
+elif transfer_type == 'adaption':
+    model_loc_map = adaption_loc_map
+
 trajectory_path = trajectory_path_map[task]
 pos_model_path = model_loc_map[task][0]  # use to import weights and normalization arrays
 load_model_path = model_loc_map[task][1]
@@ -49,17 +59,17 @@ load_model_path = model_loc_map[task][1]
 with open(trajectory_path, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
-if task == 'real_A':
-	real_positions = trajectory[0][test_traj]
-	acts = trajectory[1][test_traj]
-	ground_truth = np.append(real_positions, acts, axis=1)
+if task == 'real':
+    real_positions = trajectory[0][test_traj]
+    acts = trajectory[1][test_traj]
+    ground_truth = np.append(real_positions, acts, axis=1)
 else:
 	real_positions = trajectory[0][:, :4]
 	if task == 'sim_s1':
 		acts = trajectory[1]
 	elif task == 'sim_s10':
 		acts = trajectory[2]
-
+		
 	ground_truth = np.asarray(real_positions[:-1])
 	ground_truth = np.append(ground_truth, np.asarray(acts), axis=1)
 
@@ -106,6 +116,7 @@ with tf.Session(config=config) as sess:
     poses.append(ground_truth[0][:2])
     loads.append(ground_truth[0][2:4])
     state = np.array(ground_truth[0])
+    # pdb.set_trace()
     norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
 
     print(norm_state)

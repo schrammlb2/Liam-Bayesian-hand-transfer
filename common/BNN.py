@@ -84,7 +84,7 @@ class BNN:
         xs, ys = feedable_iterator.get_next()
         return xs, ys, handle, training_iterator, heldout_iterator
 
-    def train(self, save_path, save_step=5000, var=0.00001, training_step=200000, normalization=True, normalization_type='z_score', decay='False'
+    def train(self, save_path, save_step=10000, var=0.00001, training_step=200000, normalization=True, normalization_type='z_score', decay='False'
         , load_path=None):
         """
         :param save_path: where to save the weighs and bias as well as normalization parameters

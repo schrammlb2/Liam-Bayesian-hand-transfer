@@ -8,7 +8,7 @@ import pdb
 from sys import argv
 
 data_type = 'pos' #type of data used for this task
-task = 'real' #Which task we're training. This tells us what file to use
+task = 'sim' #Which task we're training. This tells us what file to use
 skip_step = 1
 outfile = None
 append = False
@@ -35,9 +35,6 @@ assert skip_step in [1,10]
 if (len(argv) > 3 and task == 'real'):
 	print('Err: Skip step only appicable to simulator task. Do not use this argument for \'real\' task')
 	exit(1)
-if task == 'real':
-	print('Err: Transfer data for \'real\' task is not available yet. Please use simulator only')
-	exit(1)
 
 data_type_offset = {'load':2, 'pos':0}
 task_offset = {'real_old':14, 'real':10, 'sim':6}
@@ -47,15 +44,16 @@ task_ofs = task_offset[task]
 if task == 'sim':
 
 	# datafile_name = 'data/robotic_hand_simulator/transfer/sim_data_full_v13_d4_m1.mat'
-	datafile_name = 'data/robotic_hand_simulator/transfer/sim_data_partial_v13_d4_m1.mat'
-	load_path = 'save_model/robotic_hand_simulator/d4_s' + str(skip_step) + '_' + data_type
-	save_path = 'save_model/robotic_hand_simulator/d4_s' + str(skip_step) + '_' + data_type + '_transfer'
+	datafile_name = 'data/robotic_hand_simulator/B/sim_data_partial_v13_d4_m1.mat'
+	load_path = 'save_model/robotic_hand_simulator/A/d4_s' + str(skip_step) + '_' + data_type
+	save_path = 'save_model/robotic_hand_simulator/Transfer/d4_s' + str(skip_step) + '_' + data_type
 	DATA = scipy.io.loadmat(datafile_name)['D']
 
 elif task == 'real': 
 	#This is just copied. Section is not yet implemented
-	datafile_name = 'data/robotic_hand_real/t42_cyl45_right_data_discrete_v0_d4_m1.obj'
-	save_path = 'save_model/robotic_hand_real/' + data_type
+	datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1.obj'
+	load_path = 'save_model/robotic_hand_real/A/' + data_type
+	save_path = 'save_model/robotic_hand_real/Transfer/' + data_type
 	with open(datafile_name, 'rb') as pickle_file:
 		data_matrix, state_dim, action_dim, _, _ = pickle.load(pickle_file, encoding='latin1')
 	DATA = np.asarray(data_matrix)
