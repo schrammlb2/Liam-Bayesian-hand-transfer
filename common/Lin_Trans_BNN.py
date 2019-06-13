@@ -7,9 +7,10 @@ import tensorflow_probability as tfp
 from common.data_normalization import min_max_normalize, z_score_normalize
 import numpy as np
 import pickle
+import pdb
 
 
-class BNN:
+class Lin_Trans_BNN:
     def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
@@ -36,21 +37,30 @@ class BNN:
         """
         if self.nn_type == '0':
             self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu, trainable=False),
                 tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu, trainable=False),
                 tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
+                tfp.layers.DenseFlipout(self.output_dim, trainable=False),
             ])
         elif self.nn_type == '1':
             self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu, trainable=False),
                 tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu, trainable=False),
                 tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu, trainable=False),
                 tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
+                tfp.layers.DenseFlipout(self.output_dim, trainable=False),
+            ])
+
+        self.T = tf.keras.Sequential([
+                # tf.keras.layers.Dense(self.output_dim)
+                tf.keras.layers.Dense(4)
+            ])
+        self.T_inv = tf.keras.Sequential([
+                tf.keras.layers.Dense(self.output_dim)
+                # tf.keras.layers.Dense(4)
             ])
 
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
@@ -84,7 +94,7 @@ class BNN:
         xs, ys = feedable_iterator.get_next()
         return xs, ys, handle, training_iterator, heldout_iterator
 
-    def train(self, save_path, save_step=5000, var=0.00001, training_step=200000, normalization=True, normalization_type='z_score', decay='False'
+    def train(self, save_path, save_step=5000, var=0.00001, training_step=1000000, normalization=True, normalization_type='z_score', decay='False'
         , load_path=None):
         """
         :param save_path: where to save the weighs and bias as well as normalization parameters
@@ -123,7 +133,13 @@ class BNN:
         self.var = [var for i in range(self.y_data.shape[1])]  # the variance for bayesian neural network output
         (xs, ys, handle,
          training_iterator, heldout_iterator) = self.build_input_pipeline()
-        y_pre = self.neural_net(xs)
+        #Sandwhich neural net with transfer net
+        transformed_state = self.T(xs[:, :4]) #Only transform the state, not the action
+        state_and_action = tf.concat([transformed_state, xs[:, 4:]], axis=1)
+        y_pre = self.neural_net(state_and_action)
+        y_pre = self.T_inv(y_pre)   #untransform
+
+        # y_pre = self.neural_net(xs)
         ys_distribution = tfp.distributions.Normal(loc=y_pre, scale=self.var)
         neg_log_likelihood = -tf.reduce_mean(
             input_tensor=ys_distribution.log_prob(ys))
@@ -141,6 +157,8 @@ class BNN:
                 optimizer = tf.compat.v1.train.AdamOptimizer(
                     learning_rate=learning_rate)
                 train_op = optimizer.minimize(elbo_loss, global_step=global_step)
+                # train_op = elbo_loss
+                # train_op = optimizer.minimize(elbo_loss, global_step=global_step, var_list = [])
             else:
                 learning_rate = self.lr
                 optimizer = tf.compat.v1.train.AdamOptimizer(
