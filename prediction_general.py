@@ -8,7 +8,7 @@ import pdb
 
 
 from sys import argv
-test_traj=0
+test_traj=1
 
 config = tf.ConfigProto(device_count={'GPU': 0})
 
