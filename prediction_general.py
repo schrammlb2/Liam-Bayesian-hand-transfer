@@ -39,6 +39,7 @@ model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/ro
 	'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
 	}
 trajectory_path_map = {'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
+	# 'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
 	'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
 	'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
 	}

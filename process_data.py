@@ -3,8 +3,8 @@ import pickle
 import numpy as np
 import copy 
 
-filename='data/robotic_hand_real/B/testpaths_cyl35_red_d_v0_RAW.pkl'
-new_filename = 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl'
+filename='data/robotic_hand_real/A/testpaths_cyl35_d_v0_RAW.pkl'
+new_filename = 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl'
 
 with open(filename, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')

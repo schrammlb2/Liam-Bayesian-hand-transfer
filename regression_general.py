@@ -79,6 +79,25 @@ task_ofs = task_offset[task]
 # DATA = scipy.io.loadmat(datafile_name)['D']
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
+
+method = 'zero'
+assert method in ['zero', 'clip']
+
+if task in ['real_A', 'real_B'] and method == 'zero':
+	skip = y_data[:,0]**2 > .03
+	y_data = y_data*(1-skip)[:, None]
+if task in ['real_A', 'real_B'] and method == 'clip':
+	p_max_0 = np.percentile(y_data[:,0], 98.0)
+	p_min_0 = np.percentile(y_data[:,0], 2.0)
+	p_max_1 = np.percentile(y_data[:,1], 98.0)
+	p_min_1 = np.percentile(y_data[:,1], 2.0)
+	yd_0 = np.clip(y_data[:,0], p_min_0, p_max_0)
+	yd_1 = np.clip(y_data[:,1], p_min_1, p_max_1)
+	yd = np.stack([yd_0, yd_1], axis=1)
+	# y_data = y_data*(1-skip)[:, None]
+	pdb.set_trace()
+	y_data = yd
+
 # if task == 'real_A':
 # x_data = DATA[:, :task_ofs]
 # y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
