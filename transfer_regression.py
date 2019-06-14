@@ -50,7 +50,6 @@ if task == 'sim':
 	DATA = scipy.io.loadmat(datafile_name)['D']
 
 elif task == 'real': 
-	#This is just copied. Section is not yet implemented
 	datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1.obj'
 	load_path = 'save_model/robotic_hand_real/A/' + data_type
 	save_path = 'save_model/robotic_hand_real/Transfer/' + data_type

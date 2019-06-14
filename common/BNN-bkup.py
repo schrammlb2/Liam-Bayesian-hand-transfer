@@ -53,17 +53,6 @@ class BNN:
                 tfp.layers.DenseFlipout(self.output_dim),
             ])
 
-        elif self.nn_type == '2':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                # tf.keras.layers.Dense(200),
-                tf.keras.layers.SimpleRNN(200, return_sequences=False, dropout=self.dropout_p, recurrent_dropout=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
         """
         Add dataset and get the input and output dimensions
