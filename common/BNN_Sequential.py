@@ -11,7 +11,7 @@ import pdb
 
 
 class BNN:
-    def __init__(self, lr=0.0006, dropout_p=0.1, batch_size=128, nn_type='0'):
+    def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
         :param dropout_p: dropout probability
@@ -35,68 +35,19 @@ class BNN:
         """
         Build neural network with input argument(todo)
         """
-        if self.nn_type == '0':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-        elif self.nn_type == '1':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-
-        elif self.nn_type == '2':
-            self.neural_net = tf.keras.Sequential([
-                tf.keras.layers.Dense(128, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(64, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(32, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(32, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                # tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                # tfp.layers.DenseFlipout(self.output_dim),
-
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(2),
-            ])
-            
-            # self.neural_net = tf.keras.Sequential([
-            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tfp.layers.DenseFlipout(self.output_dim),
-            # ])
+        self.neural_net = tf.keras.Sequential([
+            tf.keras.layers.LSTM(256, return_sequences=True, dropout=self.dropout_p, recurrent_dropout=self.dropout_p),
+            tf.keras.layers.LSTM(256, return_sequences=False, dropout=self.dropout_p, recurrent_dropout=self.dropout_p),
+            tfp.layers.DenseFlipout(self.output_dim)
+        ])
             
 
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
         """
         Add dataset and get the input and output dimensions
         """
-        self.input_dim = x_data.shape[1]
-        self.output_dim = y_data.shape[1]
+        self.input_shape = tf.shape(tf.contstant(0, shape=[None, x_data[0].shape[1]]))
+        self.output_shape = tf.shape(tf.contstant(0, shape=[None, x_data[0].shape[1]]))
         self.x_data = x_data
         self.y_data = y_data
         self.held_out_size = int(len(x_data) * held_out_percentage)
@@ -117,11 +68,10 @@ class BNN:
         heldout_iterator = tf.compat.v1.data.make_one_shot_iterator(heldout_frozen)
 
         handle = tf.compat.v1.placeholder(tf.string, shape=[])
+        handle = tf.placeholder(tf.float32, shape=[None,MAX_LENGTH, ])
         feedable_iterator = tf.compat.v1.data.Iterator.from_string_handle(
             handle, training_batches.output_types, training_batches.output_shapes)
         xs, ys = feedable_iterator.get_next()
-        xs = tf.cast(xs, 'float32')
-        ys = tf.cast(ys, 'float32')
         return xs, ys, handle, training_iterator, heldout_iterator
 
     def train(self, save_path, save_step=10000, var=0.00001, training_step=1000000, normalization=True, normalization_type='z_score', decay='False'

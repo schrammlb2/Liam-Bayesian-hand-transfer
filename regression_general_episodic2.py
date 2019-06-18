@@ -12,7 +12,7 @@ test_traj=0
 
 config = tf.ConfigProto(device_count={'GPU': 0})
 
-tf.keras.backend.set_floatx('float64')  # for input weights of NN
+tf.keras.backend.set_floatx('float32')  # for input weights of NN
 
 task = 'real_A'
 
@@ -20,7 +20,7 @@ task = 'real_A'
 if len(argv) > 1:
 	task = argv[1]
 
-assert task in ['real_A', 'sim_s1', 'sim_s10']
+assert task in ['real_A']
 
 PRE_START = 0  # prediction start point
 PRE_END = None  # prediction end point, None means predict whole trajectory
@@ -33,22 +33,11 @@ else:
 	act_dim=2
 
 
-#Set up the appropriate file paths for each of the tasks
-model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
-	'sim_s1' : ('save_model/robotic_hand_simulator/A/d4_s1_pos', 'save_model/robotic_hand_simulator/A/d4_s1_load'),
-	'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
-	}
-trajectory_path_map = {'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
-	# 'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
-	'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
-	'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
-	}
-trajectory_path = trajectory_path_map[task]
-pos_model_path = model_loc_map[task][0]  # use to import weights and normalization arrays
-load_model_path = model_loc_map[task][1]
-#This looks way more complicated than it really is. it's really just an efficient way to list out all the filenames.
-with open(trajectory_path, 'rb') as pickle_file:
-    trajectory = pickle.load(pickle_file, encoding='latin1')
+
+datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
+save_path = 'save_model/robotic_hand_real/A/episodic_' + data_type
+with open(datafile_name, 'rb') as pickle_file:
+    data = pickle.load(pickle_file, encoding='latin1')
 
 if task == 'real_A':
 	real_positions = trajectory[0][test_traj]
@@ -65,32 +54,14 @@ else:
 	ground_truth = np.append(ground_truth, np.asarray(acts), axis=1)
 
 
-with open(pos_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    x_norm_arr, y_norm_arr_ang = pickle.load(pickle_file)
+real_positions = data[test_traj][:,:4]
+acts = data[test_traj][:,4:10]
+y_data = data[test_traj][:,10:]- data[test_traj][:,:4]
 
-with open(load_model_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
-    y_norm_arr_vel = pickle.load(pickle_file)[1]
 
-'''Neural net structure'''
-neural_net_pos = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tf.keras.layers.LSTM(200, return_sequences=False, dropout=dropout_p, recurrent_dropout=dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
 
-neural_net_load = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tf.keras.layers.LSTM(200, return_sequences=False, dropout=dropout_p, recurrent_dropout=dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
+x = tf.placeholder(tf.float32, shape=[None, state_dim+act_dim])
 
-x = tf.placeholder(tf.float64, shape=[None, state_dim+act_dim])
 y_pos_mean = neural_net_pos(x)
 y_load_mean = neural_net_load(x)
 y_pos_distribution = tfp.distributions.Normal(loc=y_pos_mean, scale=VAR_POS)
@@ -116,7 +87,7 @@ with tf.Session(config=config) as sess:
         (pos_delta, load_delta) = sess.run((y_pos_delta_pre, y_load_delta_pre), feed_dict={x: norm_state})
         pos_delta = z_score_denormalize(pos_delta, y_norm_arr_ang[0], y_norm_arr_ang[1])[0]  # denormalize
         load_delta = z_score_denormalize(load_delta, y_norm_arr_vel[0], y_norm_arr_vel[1])[0]
-        # load_delta = ground_truth[i+1, 2:4] - ground_truth[i, 2:4]
+        load_delta = ground_truth[i+1, 2:4] - ground_truth[i, 2:4]
         next_pos = state[:2] + pos_delta
         next_load = state[2:4] + load_delta
         poses.append(next_pos)

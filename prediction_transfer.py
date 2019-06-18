@@ -8,11 +8,11 @@ import pdb
 
 
 from sys import argv
-test_traj=2
+test_traj=0
 
 config = tf.ConfigProto(device_count={'GPU': 0})
 
-tf.keras.backend.set_floatx('float64')  # for input weights of NN
+tf.keras.backend.set_floatx('float32')  # for input weights of NN
 
 task = 'real'
 transfer_type = 'direct'

@@ -7,8 +7,8 @@ import pdb
 
 from sys import argv
 
-data_type = 'load' #type of data used for this task
-task = 'sim_B' #Which task we're training. This tells us what file to use
+data_type = 'pos' #type of data used for this task
+task = 'real_A' #Which task we're training. This tells us what file to use
 skip_step = 1
 outfile = None
 append = False
@@ -48,7 +48,9 @@ elif task == 'sim_B':
 	DATA = scipy.io.loadmat(datafile_name)['D']
 
 elif task == 'real_A': 
-	datafile_name = 'data/robotic_hand_real/A/t42_cyl45_right_data_discrete_v0_d4_m1.obj'
+	# datafile_name = 'data/robotic_hand_real/A/t42_cyl45_right_data_discrete_v0_d4_m1.obj'
+
+	datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1.obj'
 	save_path = 'save_model/robotic_hand_real/A/' + data_type
 	with open(datafile_name, 'rb') as pickle_file:
 		data_matrix, state_dim, action_dim, _, _ = pickle.load(pickle_file, encoding='latin1')
@@ -80,33 +82,41 @@ task_ofs = task_offset[task]
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 
-method = 'zero'
-assert method in ['zero', 'clip']
+method = 'clip'
+# assert method in ['zero', 'clip']
 
-if task in ['real_A', 'real_B'] and method == 'zero':
-	skip = y_data[:,0]**2 > .03
-	y_data = y_data*(1-skip)[:, None]
-if task in ['real_A', 'real_B'] and method == 'clip':
-	p_max_0 = np.percentile(y_data[:,0], 98.0)
-	p_min_0 = np.percentile(y_data[:,0], 2.0)
-	p_max_1 = np.percentile(y_data[:,1], 98.0)
-	p_min_1 = np.percentile(y_data[:,1], 2.0)
-	yd_0 = np.clip(y_data[:,0], p_min_0, p_max_0)
-	yd_1 = np.clip(y_data[:,1], p_min_1, p_max_1)
-	yd = np.stack([yd_0, yd_1], axis=1)
-	# y_data = y_data*(1-skip)[:, None]
-	pdb.set_trace()
-	y_data = yd
+# if task in ['real_A', 'real_B']:
+# 	#Need to get this set up as a per-file basis
+# 	#This is currectly for the wrong file
+# 	if data_type == 'load':
+# 		cutoff = .35
+# 	if data_type == 'pos':
+# 		cutoff = 100
+# 	skip = y_data[:,0]**2 > cutoff
+# 	y_data = y_data*(1-skip)[:, None]
+# if task in ['real_A', 'real_B'] and method == 'clip':
+# 	n=1.0
+# 	p_max_0 = np.percentile(y_data[:,0], 100.0-n)
+# 	p_min_0 = np.percentile(y_data[:,0], n)
+# 	p_max_1 = np.percentile(y_data[:,1], 100.0-n)
+# 	p_min_1 = np.percentile(y_data[:,1], n)
+# 	yd_0 = np.clip(y_data[:,0], p_min_0, p_max_0)
+# 	yd_1 = np.clip(y_data[:,1], p_min_1, p_max_1)
+# 	yd = np.stack([yd_0, yd_1], axis=1)
+# 	# y_data = y_data*(1-skip)[:, None]
+# 	# pdb.set_trace()
+# 	y_data = yd
 
 # if task == 'real_A':
 # x_data = DATA[:, :task_ofs]
 # y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 # pdb.set_trace()
 if __name__ == "__main__":
-	neural_network = BNN(nn_type='0')
+	neural_network = BNN(nn_type='2')
 	neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
 	neural_network.build_neural_net()
-	final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')#, load_path=save_path)
+	final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')
+	# final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True', load_path=save_path)
 	if outfile: 
 		if append:
 			f = open(outfile, 'a+')
