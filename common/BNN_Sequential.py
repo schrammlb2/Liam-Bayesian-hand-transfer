@@ -8,10 +8,11 @@ from common.data_normalization import min_max_normalize, z_score_normalize
 import numpy as np
 import pickle
 import pdb
+import random
 
 
-class BNN:
-    def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
+class BNN_Sequential:
+    def __init__(self, lr=0.0006, dropout_p=0.1, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
         :param dropout_p: dropout probability
@@ -35,44 +36,140 @@ class BNN:
         """
         Build neural network with input argument(todo)
         """
-        self.neural_net = tf.keras.Sequential([
-            tf.keras.layers.LSTM(256, return_sequences=True, dropout=self.dropout_p, recurrent_dropout=self.dropout_p),
-            tf.keras.layers.LSTM(256, return_sequences=False, dropout=self.dropout_p, recurrent_dropout=self.dropout_p),
-            tfp.layers.DenseFlipout(self.output_dim)
-        ])
+        if self.nn_type == '0':
+            self.neural_net = tf.keras.Sequential([
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(self.output_dim),
+            ])
+        elif self.nn_type == '1':
+            self.neural_net = tf.keras.Sequential([
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(self.output_dim),
+            ])
+
+        elif self.nn_type == '2':
+            self.neural_net = tf.keras.Sequential([
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tf.keras.layers.LSTM(64, activation=tf.nn.tanh),
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(self.output_dim),
+            ])
+            # self.neural_net = tf.keras.Sequential([
+            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     # tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     # tfp.layers.DenseFlipout(self.output_dim),
+
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(2),
+            # ])
+            
+            # self.neural_net = tf.keras.Sequential([
+            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tfp.layers.DenseFlipout(self.output_dim),
+            # ])
             
 
-    def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
+    def add_dataset(self, x_data,y_data, held_out_percentage=0.1, offset=0, state_dim=4, action_dim=6):
         """
         Add dataset and get the input and output dimensions
         """
-        self.input_shape = tf.shape(tf.contstant(0, shape=[None, x_data[0].shape[1]]))
-        self.output_shape = tf.shape(tf.contstant(0, shape=[None, x_data[0].shape[1]]))
+        self.input_dim = state_dim+action_dim
+        self.output_dim = 2
         self.x_data = x_data
         self.y_data = y_data
-        self.held_out_size = int(len(x_data) * held_out_percentage)
-        self.training_size = len(x_data) - self.held_out_size
+        self.held_out_size = int(len(data) * held_out_percentage)
+        self.training_size = len(data) - self.held_out_size
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.task_ofs = self.state_dim + self.action_dim
+        self.dt_ofs = offset
 
     def build_input_pipeline(self,):
         """Build an Iterator switching between train and heldout data. This shuffle part comes from tensorflow tutorial"""
-        training_dataset = tf.data.Dataset.from_tensor_slices((self.x_data[:self.training_size], self.y_data[:self.training_size]))
-        training_batches = training_dataset.shuffle(self.training_size, reshuffle_each_iteration=True).repeat().batch(
-            self.batch_size)
-        training_iterator = tf.compat.v1.data.make_one_shot_iterator(training_batches)
 
-        heldout_dataset = tf.data.Dataset.from_tensor_slices\
-            ((self.x_data[self.training_size: self.training_size + self.held_out_size],
-              self.y_data[self.training_size: self.training_size + self.held_out_size]))
-        heldout_frozen = (heldout_dataset.take(self.held_out_size).
-                          repeat().batch(self.held_out_size))
-        heldout_iterator = tf.compat.v1.data.make_one_shot_iterator(heldout_frozen)
+        # pdb.set_trace()
+        # # self.data = random.shuffle(self.data)      
+        # self.training = self.data[:self.training_size]
+        # self.heldout = self.data[self.training_size: self.training_size + self.held_out_size]
 
-        handle = tf.compat.v1.placeholder(tf.string, shape=[])
-        handle = tf.placeholder(tf.float32, shape=[None,MAX_LENGTH, ])
-        feedable_iterator = tf.compat.v1.data.Iterator.from_string_handle(
-            handle, training_batches.output_types, training_batches.output_shapes)
-        xs, ys = feedable_iterator.get_next()
-        return xs, ys, handle, training_iterator, heldout_iterator
+        # episode = self.training[0]
+        # training_dataset = tf.data.Dataset.from_tensor_slices((episode[:,:self.task_ofs],episode[:,self.task_ofs + self.dt_ofs : self.task_ofs + self.dt_ofs + 2])).window(100)
+        # for episode in self.training[1:]:
+        #     new_dataset = tf.data.Dataset.from_tensor_slices(
+        #         (episode[:,:self.task_ofs], 
+        #         episode[:,self.task_ofs + self.dt_ofs : self.task_ofs + self.dt_ofs + 2])
+        #         ).window(100)
+        #     pdb.set_trace()
+        #     training_dataset.concatenate(new_dataset)
+
+
+        # episode = self.heldout[0]
+        # heldout_dataset = tf.data.Dataset.from_tensor_slices((episode[:,:self.task_ofs], 
+        #         episode[:,self.task_ofs + self.dt_ofs : self.task_ofs + self.dt_ofs + 2])).window(100)
+        # for episode in self.heldout:
+        #     new_dataset = tf.data.Dataset.from_tensor_slices((episode[:,:self.task_ofs], 
+        #         episode[:,self.task_ofs + self.dt_ofs : self.task_ofs + self.dt_ofs + 2])).window(100)
+        #     heldout_dataset.concatenate(new_dataset)
+
+        # # training_dataset = tf.data.Dataset.from_tensor_slices((self.x_data[:self.training_size], self.y_data[:self.training_size]))
+        # training_batches = training_dataset.shuffle(self.training_size, reshuffle_each_iteration=True).repeat().batch(
+        #     self.batch_size)
+        # training_iterator = tf.compat.v1.data.make_one_shot_iterator(training_batches)
+
+        # heldout_dataset = tf.data.Dataset.from_tensor_slices\
+        #     ((self.x_data[self.training_size: self.training_size + self.held_out_size],
+        #       self.y_data[self.training_size: self.training_size + self.held_out_size]))
+        # heldout_frozen = (heldout_dataset.take(self.held_out_size).
+        #                   repeat().batch(self.held_out_size))
+        # heldout_iterator = tf.compat.v1.data.make_one_shot_iterator(heldout_frozen)
+
+        handle = tf.compat.v1.placeholder(tf.string, shape=[None, None, self.input_dim])
+        print(handle)
+        pdb.set_trace()
+        # feedable_iterator = tf.compat.v1.data.Iterator.from_string_handle(
+        #     handle, training_batches.output_types, training_batches.output_shapes)
+        # xs, ys = feedable_iterator.get_next()
+        # xs = tf.cast(xs, 'float32')
+        # ys = tf.cast(ys, 'float32')
+        # return xs, ys, handle, training_iterator, heldout_iterator
+
+
+
+
+        # handle = tf.compat.v1.placeholder(tf.string, shape=[])
+
+
 
     def train(self, save_path, save_step=10000, var=0.00001, training_step=1000000, normalization=True, normalization_type='z_score', decay='False'
         , load_path=None):
@@ -86,33 +183,39 @@ class BNN:
         :param decay: if decay learning rate while training
         :return:
         """
+        DATA = np.concatenate(self.data)
+
+        x_data = np.concatenate(self.x_data)
+        y_data = np.concatenate(self.y_data)
+        
         if normalization:
             if normalization_type == 'min_max':
-                x_min_arr = np.amin(self.x_data, axis=0)
-                x_max_arr = np.amax(self.x_data, axis=0)
-                y_min_arr = np.amin(self.y_data, axis=0)
-                y_max_arr = np.amax(self.y_data, axis=0)
-                self.x_data = min_max_normalize(self.x_data, x_min_arr, x_max_arr)
-                self.y_data = min_max_normalize(self.y_data, y_min_arr, y_max_arr)
+                x_min_arr = np.amin(x_data, axis=0)
+                x_max_arr = np.amax(x_data, axis=0)
+                y_min_arr = np.amin(y_data, axis=0)
+                y_max_arr = np.amax(y_data, axis=0)
+                x_data = min_max_normalize(x_data, x_min_arr, x_max_arr)
+                y_data = min_max_normalize(y_data, y_min_arr, y_max_arr)
                 with open(save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
                     pickle.dump(((x_min_arr, x_max_arr), (y_min_arr, y_max_arr)), pickle_file)
                 # with open(save_path+'/normalization_arr/y_normalization_arr', 'wb') as pickle_file:
                 #     pickle.dump((y_min_arr, y_max_arr), pickle_file)
             elif normalization_type == 'z_score':
-                x_mean_arr = np.mean(self.x_data, axis=0)
-                x_std_arr = np.std(self.x_data, axis=0)
-                y_mean_arr = np.mean(self.y_data, axis=0)
-                y_std_arr = np.std(self.y_data, axis=0)
-                self.x_data = z_score_normalize(self.x_data, x_mean_arr, x_std_arr)
-                self.y_data = z_score_normalize(self.y_data, y_mean_arr, y_std_arr)
+                x_mean_arr = np.mean(x_data, axis=0)
+                x_std_arr = np.std(x_data, axis=0)
+                y_mean_arr = np.mean(y_data, axis=0)
+                y_std_arr = np.std(y_data, axis=0)
+                x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
+                y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
                 with open(save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
                     pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
                 # with open(save_path+'/normalization_arr/y_normalization_arr', 'wb') as pickle_file:
                 #     pickle.dump((y_mean_arr, y_std_arr), pickle_file)
 
-        self.var = [var for i in range(self.y_data.shape[1])]  # the variance for bayesian neural network output
-        (xs, ys, handle,
-         training_iterator, heldout_iterator) = self.build_input_pipeline()
+        self.var = [var for i in range(y_data.shape[1])]  # the variance for bayesian neural network output
+        # (xs, ys, handle,
+         # training_iterator, heldout_iterator) = self.build_input_pipeline()
+         
         # pdb.set_trace()
         y_pre = self.neural_net(xs)
         ys_distribution = tfp.distributions.Normal(loc=y_pre, scale=self.var)
@@ -148,12 +251,13 @@ class BNN:
                 self.neural_net.load_weights(load_path+'/weights/BNN_weights')
             # sess.graph.finalize()
             # Run the training loop.
-            train_handle = sess.run(training_iterator.string_handle())
-            heldout_handle = sess.run(heldout_iterator.string_handle())
+            # train_handle = sess.run(training_iterator.string_handle())
+            # heldout_handle = sess.run(heldout_iterator.string_handle())
 
             for step in range(training_step):
+
                 _, _, ac = sess.run([train_op, accuracy_update_op, accuracy],
-                                    feed_dict={handle: train_handle})
+                                    feed_dict={handle: })
                 if step % 100 == 0:
                     loss_value, accuracy_value = sess.run(
                         [elbo_loss, accuracy], feed_dict={handle: heldout_handle}) #Measure accuracy against heldout data

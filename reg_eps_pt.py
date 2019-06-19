@@ -131,19 +131,6 @@ dt_ofs = data_type_offset[data_type]
 # y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 # pdb.set_trace()
 if __name__ == "__main__":
-    neural_network = BNN_Sequential(nn_type='2', dropout_p=.1)
-    neural_network.add_dataset(new_eps, held_out_percentage=held_out, offset=dt_ofs, state_dim=state_dim, action_dim=action_dim)
-    neural_network.build_neural_net()
+    neural_network = PT_BNN(nn_type='2', dropout_p=.1)
     final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')
-    # final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True', load_path=save_path)
-    if outfile: 
-        if append:
-            f = open(outfile, 'a+')
-        else:
-            f = open(outfile, 'w+')
-        out_string= ('cold start\t' + data_type +
-                    '\t' + task + '\t' + str(held_out) +
-                    '\t:' + str(final_loss) + '\n')
-        f.write(out_string)
-        f.close()
     

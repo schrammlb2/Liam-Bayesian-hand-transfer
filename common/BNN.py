@@ -11,7 +11,7 @@ import pdb
 
 
 class BNN:
-    def __init__(self, lr=0.0006, dropout_p=0.1, batch_size=128, nn_type='0'):
+    def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
         :param dropout_p: dropout probability
@@ -56,27 +56,35 @@ class BNN:
 
         elif self.nn_type == '2':
             self.neural_net = tf.keras.Sequential([
-                tf.keras.layers.Dense(128, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(64, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(32, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(32, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(16, activation=tf.nn.selu),
-                # tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                # tfp.layers.DenseFlipout(self.output_dim),
-
-                tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-                tf.keras.layers.Dense(2),
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tf.keras.layers.LSTM(64, activation=tf.nn.tanh),
+                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
+                tf.keras.layers.Dropout(rate=self.dropout_p),
+                tfp.layers.DenseFlipout(self.output_dim),
             ])
+            # self.neural_net = tf.keras.Sequential([
+            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+            #     # tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     # tfp.layers.DenseFlipout(self.output_dim),
+
+            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
+            #     tf.keras.layers.Dense(2),
+            # ])
             
             # self.neural_net = tf.keras.Sequential([
             #     tf.keras.layers.Dense(128, activation=tf.nn.selu),

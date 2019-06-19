@@ -107,51 +107,51 @@ neural_net_load = tf.keras.Sequential([
     tfp.layers.DenseFlipout(2),
 ])
 
-neural_net_pos = tf.keras.Sequential([
-    tf.keras.layers.Dense(128, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(64, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(32, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(32, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    # tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    # tfp.layers.DenseFlipout(self.output_dim),
+# neural_net_pos = tf.keras.Sequential([
+#     tf.keras.layers.Dense(128, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(64, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     # tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     # tfp.layers.DenseFlipout(self.output_dim),
 
-    tf.keras.layers.AlphaDropout(rate=dropout_p1),
-    tf.keras.layers.Dense(2)
-])
+#     tf.keras.layers.AlphaDropout(rate=dropout_p1),
+#     tf.keras.layers.Dense(2)
+# ])
 
-neural_net_load = tf.keras.Sequential([
-    tf.keras.layers.Dense(128, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(64, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(32, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(32, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(16, activation=tf.nn.selu),
-    # tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    # tfp.layers.DenseFlipout(self.output_dim),
+# neural_net_load = tf.keras.Sequential([
+#     tf.keras.layers.Dense(128, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(64, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(32, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(16, activation=tf.nn.selu),
+#     # tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     # tfp.layers.DenseFlipout(self.output_dim),
 
-    tf.keras.layers.AlphaDropout(rate=dropout_p2),
-    tf.keras.layers.Dense(2)
-])
+#     tf.keras.layers.AlphaDropout(rate=dropout_p2),
+#     tf.keras.layers.Dense(2)
+# ])
 
 
 x = tf.placeholder(tf.float32, shape=[None, state_dim+act_dim])

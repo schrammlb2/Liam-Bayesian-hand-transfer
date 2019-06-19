@@ -64,30 +64,15 @@ for episode in out:
 	x_stack = np.stack(x_ave_list_episode, axis=0)	
 	y_stack = np.stack(y_ave_list_episode, axis=0)
 
-	new_ep = np.concatenate([episode[:,:4], x_stack, episode[:,4:], y_stack], axis=1)
+	new_ep = np.concatenate([episode[:,:2], x_stack, episode[:,4:], y_stack], axis=1)
 	new_eps.append(new_ep)
 DATA = np.concatenate(new_eps)
 
-new_state_dim = 6
-# pdb.set_trace()
-# data_matrix, state_dim, action_dim, _, _ = out
-# DATA = np.asarray(data_matrix)
-# task_ofs= state_dim+action_dim
-
-
+new_state_dim = 4
 
 data_type_offset = {'ave_load':4, 'load':2, 'pos':0}
-# task_offset = {'real_old':14, 'real_A':10,'real_B':10, 'sim_A':6, 'sim_B':6}
 dt_ofs = data_type_offset[data_type]
-# task_ofs = task_offset[task]
 task_ofs = new_state_dim + action_dim
-
-# DATA = scipy.io.loadmat(datafile_name)['D']
-# x_data = DATA[:, :task_ofs]
-# if data_type == 'load':
-# 	y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+4] - DATA[:, dt_ofs:dt_ofs+4]
-# else:
-# 	y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
@@ -108,16 +93,10 @@ if task in ['real_A', 'real_B'] and method == 'clip':
 	yd_0 = np.clip(y_data[:,0], p_min_0, p_max_0)
 	yd_1 = np.clip(y_data[:,1], p_min_1, p_max_1)
 	yd = np.stack([yd_0, yd_1], axis=1)
-	# y_data = y_data*(1-skip)[:, None]
-	# pdb.set_trace()
 	y_data = yd
 
-# if task == 'real_A':
-# x_data = DATA[:, :task_ofs]
-# y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
-# pdb.set_trace()
 if __name__ == "__main__":
-	neural_network = BNN(nn_type='2', dropout_p=.1)
+	neural_network = BNN(nn_type='0', dropout_p=.1)
 	neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
 	neural_network.build_neural_net()
 	final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')
