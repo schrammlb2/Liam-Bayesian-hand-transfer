@@ -112,7 +112,7 @@ method = 'clip'
 # y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 # pdb.set_trace()
 if __name__ == "__main__":
-	neural_network = BNN(nn_type='2', dropout)
+	neural_network = BNN(nn_type='2', dropout_p=0)
 	neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
 	neural_network.build_neural_net()
 	final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')
