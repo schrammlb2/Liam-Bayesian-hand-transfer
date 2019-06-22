@@ -91,7 +91,7 @@ elif task == 'real_old':
 # pdb.set_trace()
 
 action_list = [np.asarray([1.5,0]), np.asarray([-1.5,0]), np.asarray([0, 1.5]), np.asarray([0, -1.5]), 
-np.asarray([1, 1]), np.asarray([1, -1]), np.asarray([-1, 1]), np.asarray([-1, -1])]
+	np.asarray([1, 1]), np.asarray([1, -1]), np.asarray([-1, 1]), np.asarray([-1, -1])]
 
 
 # pdb.set_trace()
@@ -165,7 +165,8 @@ if __name__ == "__main__":
 
 		neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
 		neural_network.build_neural_net()
-		final_loss = neural_network.train(training_step = 20000, save_path=save_path, normalization=True, normalization_type='z_score', decay='True', suffix=str(i))
+		final_loss = neural_network.train(training_step = 20000, save_path=save_path, 
+			normalization=True, normalization_type='z_score', decay='True', suffix=str(i))
 	# final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True', load_path=save_path)
 	if outfile: 
 		if append:
