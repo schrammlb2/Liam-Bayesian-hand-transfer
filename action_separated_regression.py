@@ -90,8 +90,19 @@ elif task == 'real_old':
 
 # pdb.set_trace()
 
+action_list = [np.asarray([1.5,0]), np.asarray([-1.5,0]), np.asarray([0, 1.5]), np.asarray([0, -1.5]), 
+np.asarray([1, 1]), np.asarray([1, -1]), np.asarray([-1, 1]), np.asarray([-1, -1])]
+
 
 # pdb.set_trace()
+
+action_vecs = []
+for act in action_list:
+	# pdb.set_trace()
+	temp = np.isclose(DATA[:,4:6], act)
+	include = np.logical_and(temp[:,0], temp[:,1])
+	action_vecs.append(np.append(DATA[include][:,:4],DATA[include][:,6:], axis=1))
+
 
 # if task in ['real_A', 'real_B']:
 # 	n=1.5
@@ -120,8 +131,6 @@ elif task == 'real_old':
 	# pdb.set_trace()
 
 # DATA = scipy.io.loadmat(datafile_name)['D']
-x_data = DATA[:, :task_ofs]
-y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 
 
 # if task in ['real_A', 'real_B']:# and method == 'clip':
@@ -146,12 +155,17 @@ y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
 # if task == 'real_A':
 # x_data = DATA[:, :task_ofs]
 # y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
-# pdb.set_trace()
+
 if __name__ == "__main__":
-	neural_network = BNN(nn_type='3', dropout_p=.1)
-	neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
-	neural_network.build_neural_net()
-	final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True')
+	for i in range(len(action_vecs)):
+		neural_network = BNN(nn_type='3', dropout_p=.1)
+
+		x_data = action_vecs[i][:, :task_ofs]
+		y_data = action_vecs[i][:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - action_vecs[i][:, dt_ofs:dt_ofs+2]
+
+		neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
+		neural_network.build_neural_net()
+		final_loss = neural_network.train(training_step = 20000, save_path=save_path, normalization=True, normalization_type='z_score', decay='True', suffix=str(i))
 	# final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True', load_path=save_path)
 	if outfile: 
 		if append:

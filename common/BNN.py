@@ -5,13 +5,14 @@ Bayesian Neural Network Structure
 import tensorflow as tf
 import tensorflow_probability as tfp
 from common.data_normalization import min_max_normalize, z_score_normalize
+from common.build_model import *
 import numpy as np
 import pickle
 import pdb
 
 
 class BNN:
-    def __init__(self, lr=0.001, dropout_p=0.1, batch_size=128, nn_type='0'):
+    def __init__(self, lr=0.0007, dropout_p=0.2, batch_size=128, nn_type='0'):
         """
         :param lr: learning rate
         :param dropout_p: dropout probability
@@ -35,68 +36,7 @@ class BNN:
         """
         Build neural network with input argument(todo)
         """
-        if self.nn_type == '0':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-        elif self.nn_type == '1':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(256, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-
-        elif self.nn_type == '2':
-            self.neural_net = tf.keras.Sequential([
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tf.keras.layers.LSTM(64, activation=tf.nn.tanh),
-                tfp.layers.DenseFlipout(64, activation=tf.nn.relu),
-                tf.keras.layers.Dropout(rate=self.dropout_p),
-                tfp.layers.DenseFlipout(self.output_dim),
-            ])
-            # self.neural_net = tf.keras.Sequential([
-            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(16, activation=tf.nn.selu),
-            #     # tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     # tfp.layers.DenseFlipout(self.output_dim),
-
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(2),
-            # ])
-            
-            # self.neural_net = tf.keras.Sequential([
-            #     tf.keras.layers.Dense(128, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(64, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tf.keras.layers.Dense(32, activation=tf.nn.selu),
-            #     tf.keras.layers.AlphaDropout(rate=self.dropout_p),
-            #     tfp.layers.DenseFlipout(self.output_dim),
-            # ])
+        self.neural_net = build_model(nn_type=self.nn_type, output_dim=self.output_dim, dropout_p=self.dropout_p)
             
 
     def add_dataset(self, x_data, y_data, held_out_percentage=0.1):
@@ -133,7 +73,7 @@ class BNN:
         return xs, ys, handle, training_iterator, heldout_iterator
 
     def train(self, save_path, save_step=10000, var=0.00001, training_step=1000000, normalization=True, normalization_type='z_score', decay='False'
-        , load_path=None):
+        , load_path=None, suffix = ''):
         """
         :param save_path: where to save the weighs and bias as well as normalization parameters
         :param save_step: save model per 500000(default) steps
@@ -203,7 +143,7 @@ class BNN:
             sess.run(init_op)
             if load_path: 
                 print("LOADING WEIGHTS")
-                self.neural_net.load_weights(load_path+'/weights/BNN_weights')
+                self.neural_net.load_weights(load_path+'/weights/BNN_weights' + suffix)
             # sess.graph.finalize()
             # Run the training loop.
             train_handle = sess.run(training_iterator.string_handle())
@@ -219,7 +159,7 @@ class BNN:
                         step, loss_value, accuracy_value))
                 if step % save_step == 0 and step != 0:
                     print("Saving weights")
-                    self.neural_net.save_weights(save_path+'/weights/BNN_weights') #Save weights 
+                    self.neural_net.save_weights(save_path+'/weights/BNN_weights' + suffix) #Save weights 
 
         return accuracy_value
 
