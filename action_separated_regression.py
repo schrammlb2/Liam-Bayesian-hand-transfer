@@ -8,7 +8,7 @@ import pdb
 from sys import argv
 
 data_type = 'pos' #type of data used for this task
-task = 'real_A' #Which task we're training. This tells us what file to use
+task = 'real_B' #Which task we're training. This tells us what file to use
 skip_step = 1
 outfile = None
 append = False
@@ -102,8 +102,10 @@ for act in action_list:
 	temp = np.isclose(DATA[:,4:6], act)
 	include = np.logical_and(temp[:,0], temp[:,1])
 	action_vecs.append(np.append(DATA[include][:,:4],DATA[include][:,6:], axis=1))
+	action_dim=4
 
-
+if state_dim and action_dim: 
+	task_ofs = state_dim + action_dim
 # if task in ['real_A', 'real_B']:
 # 	n=1.5
 # 	p_max_0 = np.percentile(DATA[:,2], 100.0-n)

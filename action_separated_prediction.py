@@ -16,7 +16,7 @@ config = tf.ConfigProto(device_count={'GPU': 0})
 tf.keras.backend.set_floatx('float32')  # for input weights of NN
 
 task = 'real_B'
-nn_type = '2'
+nn_type = '3'
 
 
 if len(argv) > 1:
@@ -39,7 +39,7 @@ def get_action_index(action):
     action_list = [np.asarray([1.5,0]), np.asarray([-1.5,0]), np.asarray([0, 1.5]), np.asarray([0, -1.5]), 
         np.asarray([1, 1]), np.asarray([1, -1]), np.asarray([-1, 1]), np.asarray([-1, -1])]
     for i, act in enumerate(action_list):
-        if np.isclose(action,act):
+        if np.isclose(action,act).all():
             return i
     print("Action is outside scope of networks")
     print(action)
@@ -128,7 +128,7 @@ x = tf.placeholder(tf.float32, shape=[None, state_dim+act_dim])
 # Condensed the above 3 lines (per network) into one line, so I can more easily store them all in a list.
 # Functionality is the same, just now there's one operation for each action
 y_pos_delta_pre = [tfp.distributions.Normal(loc=nn(x), scale=VAR_POS).sample() for nn in neural_net_pos]
-y_pos_delta_load = [tfp.distributions.Normal(loc=nn(x), scale=VAR_LOAD).sample() for nn in neural_net_load]
+y_load_delta_pre = [tfp.distributions.Normal(loc=nn(x), scale=VAR_LOAD).sample() for nn in neural_net_load]
 
 
 
