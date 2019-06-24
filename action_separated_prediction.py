@@ -30,7 +30,7 @@ VAR_POS = [0.00001, 0.00001]
 VAR_LOAD = [0.00001, 0.00001]
 state_dim = 4
 if task in ['real_A', 'real_B']:
-	act_dim = 6
+	act_dim = 4
 else:
 	act_dim=2
 
@@ -137,16 +137,18 @@ y_load_delta_pre = [tfp.distributions.Normal(loc=nn(x), scale=VAR_LOAD).sample()
 with tf.Session(config=config) as sess:
     init = tf.global_variables_initializer()
     sess.run(init)
-    for i, net in enumerate(neural_net_pos):
-        net.load_weights(pos_model_path+"/weights/BNN_weights" + str(i))  # load NN parameters
-    for i, net in enumerate(neural_net_load):        
-        net.load_weights(load_model_path+"/weights/BNN_weights" + str(i))
+    # for i, net in enumerate(neural_net_pos):
+    #     net.load_weights(pos_model_path+"/weights/BNN_weights" + str(i))  # load NN parameters
+    # for i, net in enumerate(neural_net_load):        
+    #     net.load_weights(load_model_path+"/weights/BNN_weights" + str(i))
     poses = []  # prediction in angle space
     loads = []  # prediction in velocity space
     poses.append(ground_truth[0][:2])
     loads.append(ground_truth[0][2:4])
-    state = np.array(ground_truth[0])
+    # state = np.array(ground_truth[0])
+    state = np.append(ground_truth[0][:4],ground_truth[0][6:])
     norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
+    pdb.set_trace()
 
     print(norm_state)
     for i in range(len(ground_truth)-1):
@@ -202,7 +204,7 @@ with tf.Session(config=config) as sess:
 
         poses.append(next_pos)
         loads.append(next_load)
-        state = np.append(np.append(next_pos, next_load), ground_truth[i + 1][state_dim:state_dim+act_dim])
+        state = np.append(np.append(next_pos, next_load), ground_truth[i + 1][state_dim+2:state_dim+act_dim+2])
         norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
 
 

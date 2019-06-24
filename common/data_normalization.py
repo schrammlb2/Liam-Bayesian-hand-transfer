@@ -1,5 +1,5 @@
 import copy
-
+import pdb
 
 def min_max_normalize(data, min_arr, max_arr):
     normalized_data = copy.deepcopy(data)
@@ -17,6 +17,7 @@ def min_max_denormalize(data, min_arr, max_arr):
 
 def z_score_normalize(data, mean_arr, std_arr):
     normalized_data = copy.deepcopy(data)
+    pdb.set_trace()
     for i in range(data.shape[0]):
         normalized_data[i] = (data[i] - mean_arr[:data.shape[1]]) / std_arr[:data.shape[1]]
     return normalized_data
