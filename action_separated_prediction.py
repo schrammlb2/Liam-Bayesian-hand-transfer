@@ -137,10 +137,10 @@ y_load_delta_pre = [tfp.distributions.Normal(loc=nn(x), scale=VAR_LOAD).sample()
 with tf.Session(config=config) as sess:
     init = tf.global_variables_initializer()
     sess.run(init)
-    # for i, net in enumerate(neural_net_pos):
-    #     net.load_weights(pos_model_path+"/weights/BNN_weights" + str(i))  # load NN parameters
-    # for i, net in enumerate(neural_net_load):        
-    #     net.load_weights(load_model_path+"/weights/BNN_weights" + str(i))
+    for i, net in enumerate(neural_net_pos):
+        net.load_weights(pos_model_path+"/weights/BNN_weights" + str(i))  # load NN parameters
+    for i, net in enumerate(neural_net_load):        
+        net.load_weights(load_model_path+"/weights/BNN_weights" + str(i))
     poses = []  # prediction in angle space
     loads = []  # prediction in velocity space
     poses.append(ground_truth[0][:2])
@@ -148,10 +148,11 @@ with tf.Session(config=config) as sess:
     # state = np.array(ground_truth[0])
     state = np.append(ground_truth[0][:4],ground_truth[0][6:])
     norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
-    pdb.set_trace()
+    # pdb.set_trace()
 
     print(norm_state)
     for i in range(len(ground_truth)-1):
+        # pdb.set_trace()
         action = ground_truth[i + 1][state_dim:state_dim+2]
         ind = get_action_index(action)
         (pos_delta, load_delta) = sess.run((y_pos_delta_pre[ind], y_load_delta_pre[ind]), feed_dict={x: norm_state})

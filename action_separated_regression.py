@@ -164,10 +164,11 @@ if __name__ == "__main__":
 
 		x_data = action_vecs[i][:, :task_ofs]
 		y_data = action_vecs[i][:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - action_vecs[i][:, dt_ofs:dt_ofs+2]
+		# pdb.set_trace()
 
 		neural_network.add_dataset(x_data, y_data, held_out_percentage=held_out)
 		neural_network.build_neural_net()
-		final_loss = neural_network.train(training_step = 20000, save_path=save_path, 
+		final_loss = neural_network.train(training_step = 200000, save_path=save_path, 
 			normalization=True, normalization_type='z_score', decay='True', suffix=str(i))
 	# final_loss = neural_network.train(save_path=save_path, normalization=True, normalization_type='z_score', decay='True', load_path=save_path)
 	if outfile: 

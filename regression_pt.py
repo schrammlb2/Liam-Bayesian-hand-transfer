@@ -5,8 +5,10 @@ import pickle
 import numpy as np 
 import pdb
 import torch
-from common.data_normalization import z_score_normalize, z_score_denormalize
+from common.data_normalization import *
 from common.pt_build_model import pt_build_model
+import random
+import matplotlib.pyplot as plt
 
 from sys import argv
 
@@ -17,6 +19,7 @@ outfile = None
 append = False
 held_out = .1
 # _ , arg1, arg2, arg3 = argv
+nn_type = '1'
 
 # pdb.set_trace()
 if len(argv) > 1:
@@ -39,83 +42,91 @@ if (len(argv) > 3 and task != 'sim_A'):
     print('Err: Skip step only appicable to sim_A task. Do not use this argument for other tasks')
     exit(1)
 
-datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
-save_path = 'save_model/robotic_hand_real/episodic/' + data_type
-with open(datafile_name, 'rb') as pickle_file:
-    out = pickle.load(pickle_file, encoding='latin1')
+
 
 state_dim = 4
 action_dim = 6
 alpha = .4
 
+datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
+
+
+
+save_path = 'save_model/robotic_hand_real/pytorch'
+with open(datafile_name, 'rb') as pickle_file:
+    out = pickle.load(pickle_file, encoding='latin1')
+
+
+
+
 dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
-def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
-    states = []
+def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50, return_states = False):
     true_states = traj[:,:state_dim]
     state = traj[0][:state_dim]
-
+    states = []#state.view(1, state_dim)
     if cuda:
         state = state.cuda()
         true_states = true_states.cuda()
-    mse_fn = torch.nn.MSELoss(reduction='none')
+
+    mse_fn = torch.nn.MSELoss()
+
+    def softmax(states):
+        mse_fn = torch.nn.MSELoss(reduction='none')
+        mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+        mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
+        return torch.logsumexp(mse, 0)
 
 
-    for point in traj:
+    for i, point in enumerate(traj):
         states.append(state)
         action = point[state_dim:state_dim+action_dim]
-        if cuda: action = action.cuda()
+        if cuda: action = action.cuda()    
         inpt = torch.cat((state, action), 0)
-
-        # pdb.set_trace()
-        norm_inpt = z_score_normalize(inpt, x_mean_arr, x_std_arr)
+        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
         state_delta = model(inpt)
-        state+= z_score_denormalize(state_delta, y_mean_arr, y_std_arr)
+        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        state= state_delta + state
+
         #May need random component here to prevent overfitting
+        # states = torch.cat((states,state.view(1, state_dim)), 0)
+        if threshold and i%10:
+            with torch.no_grad():
+                mse = mse_fn(state[:2], true_states[i,:2])
+            if mse > threshold:
+                states = torch.stack(states, 0)
+                return softmax(states)*10, 0, i
+                # return mse_fn(state[:2], true_states[i,:2]), 0, i
+
 
     states = torch.stack(states, 0)
-    mse = mse_fn(states[:,:2], true_states[:,:2])
+    if return_states:
+        return states
 
     loss_type = 'soft maximum'
+    # loss_type = 'sum'
     if loss_type == 'soft maximum':
-        mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
-        pos_loss = torch.logsumexp(mse, 0)
+        return softmax(states), 1, len(traj)
     else:
-        pos_loss = torch.sum(mse)
+        mse_fn = torch.nn.MSELoss()
+        pos_loss = mse_fn(states[:,:2], true_states[:,:2])
+        
 
-    return pos_loss
+    return pos_loss, 1, len(traj)
 
 
-model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
+model = pt_build_model(nn_type, state_dim+action_dim, state_dim, .1)
 if cuda: 
     model = model.cuda()
-opt = torch.optim.Adam(model.parameters())
+opt = torch.optim.Adam(model.parameters(), lr=.001)
 
 
 
-new_eps = []
-for episode in out:
-    x_ave = episode[0, 2:4]*0
-    y_ave = episode[0, state_dim+action_dim+2:]*0
-    x_ave_list_episode = []
-    y_ave_list_episode = []
-    for i in range(len(episode)):
-        x_ave *= alpha
-        y_ave *= alpha
 
-        x_ave += episode[i, 2:4]*(1-alpha) 
-        y_ave += episode[i, state_dim+action_dim+2:]*(1-alpha)
-        x_ave_list_episode.append(x_ave)
-        y_ave_list_episode.append(y_ave)
-    x_stack = np.stack(x_ave_list_episode, axis=0)  
-    y_stack = np.stack(y_ave_list_episode, axis=0)
-
-    new_ep = np.concatenate([episode[:,:2], x_stack, episode[:,4:], y_stack], axis=1)
-    new_eps.append(new_ep)
-DATA = np.concatenate(new_eps)
+DATA = np.concatenate(out)
 
 new_state_dim = 4
 
@@ -124,7 +135,7 @@ dt_ofs = data_type_offset[data_type]
 task_ofs = new_state_dim + action_dim
 
 x_data = DATA[:, :task_ofs]
-y_data = DATA[:, task_ofs+dt_ofs:task_ofs+dt_ofs+2] - DATA[:, dt_ofs:dt_ofs+2]
+y_data = DATA[:, -4:] - DATA[:, :4]
 
 
 x_mean_arr = np.mean(x_data, axis=0)
@@ -143,25 +154,63 @@ y_mean_arr = torch.tensor(y_mean_arr, dtype=dtype)
 y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 # out = [z_score_normalize]
 
+if cuda:
+    x_mean_arr = x_mean_arr.cuda()
+    x_std_arr = x_std_arr.cuda()
+    y_mean_arr = y_mean_arr.cuda()
+    y_std_arr = y_std_arr.cuda()
+    # 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 if __name__ == "__main__":
 
+    thresh = 10
     print('beginning run')
+
+    np.random.shuffle(out)
+    val_data = out[int(len(out)*(1-held_out)):]
+    out = out[:int(len(out)*(1-held_out))]
     for epoch in range(500):
+        print('Epoch: ' + str(epoch))
         np.random.shuffle(out)
         total_loss = 0
         # pdb.set_trace()
+        total_completed = 0
+        total_distance = 0
 
         for i, episode in enumerate(out):
             if i % 30 == 0:
                 print(i)
-            loss = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
-            total_loss += loss.data
-
+            loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = thresh)
             opt.zero_grad()
             loss.backward()
             opt.step()
-        print(total_loss/len(out))
+
+        for i, episode in enumerate(val_data):
+            loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50)
+            total_loss += loss.data
+            total_completed += completed
+            total_distance += dist
+
+        # episode = random.choice(val_data)
+        # states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
+            
+        # eps = episode.cpu().detach().numpy()
+        # plt.figure(1)
+        # plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
+        # plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
+        # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+        # plt.axis('scaled')
+        # plt.title('Bayesian NN Prediction -- pos Space')
+        # plt.legend()
+        # plt.show()
+
+
+        thresh = 150
+        print('Loss: ' + str(total_loss/len(val_data)))
+        print('completed: ' + str(total_completed/len(val_data)))
+        print('Average time before divergence: ' + str(total_distance/len(val_data)))
+        with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
+            torch.save(model, pickle_file)
 
     if outfile: 
         if append:

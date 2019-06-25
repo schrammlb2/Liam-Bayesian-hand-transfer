@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pickle
 
 data_type = 'load' #type of data used for this task
-task = 'real_A' #Which task we're training. This tells us what file to use
+task = 'real_B' #Which task we're training. This tells us what file to use
 skip_step = 1
 held_out = .1
 
@@ -60,14 +60,16 @@ skip = y_data[:,0]**2 > 1
 y_data = y_data*(1-skip)[:, None]
 # skip2 = 
 # pdb.set_trace()
-plt.figure(1)
 cutoffa = 0#2200
 cutoffb = -1#3000
-# plt.scatter(y_data[0, 0], marker="*", label='start')
-# plt.plot(DATA[cutoffa:cutoffb, 0], DATA[cutoffa:cutoffb, 1], color='blue', label='Ground Truth', marker='.')
-plt.plot(DATA[:, 4], DATA[:, 5], color='blue', label='Ground Truth', marker='.')
-# plt.plot(y_data[:100,0],y_data[:100,1], color='blue', label='Ground Truth', marker='.')
-# plt.plot(y_data_mod[:,0]**2, color='blue', label='Ground Truth', marker='.')
-# plt.hist(DATA[:, 0], bins=1000)
-# plt.hist(y_data[:, 0]**2, bins=1000)
-plt.show()
+while True:
+	plt.figure(1)
+	# plt.scatter(y_data[0, 0], marker="*", label='start')
+	pdb.set_trace()
+	plt.plot(DATA[cutoffa:cutoffb, 0], DATA[cutoffa:cutoffb, 1], color='blue', label='Ground Truth', marker='.')
+	# plt.plot(DATA[:, 4], DATA[:, 5], color='blue', label='Ground Truth', marker='.')
+	# plt.plot(y_data[:100,0],y_data[:100,1], color='blue', label='Ground Truth', marker='.')
+	# plt.plot(y_data_mod[:,0]**2, color='blue', label='Ground Truth', marker='.')
+	# plt.hist(DATA[:, 0], bins=1000)
+	# plt.hist(y_data[:, 0]**2, bins=1000)
+	plt.show()
