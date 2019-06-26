@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from sys import argv
 
 task = 'real_A' #Which task we're training. This tells us what file to use
-skip_step = 1
 outfile = None
 append = False
 held_out = .1
@@ -22,39 +21,39 @@ nn_type = '0'
 
 if len(argv) > 1:
     test_traj = int(argv[1])
+if len(argv) > 2:
+    task = argv[2]
+if len(argv) > 3:
+    nn_type = argv[3]
 
-
-assert task in ['real_A', 'real_B','sim_A', 'sim_B']
-assert skip_step in [1,10]
-if (len(argv) > 3 and task != 'sim_A'):
-    print('Err: Skip step only appicable to sim_A task. Do not use this argument for other tasks')
-    exit(1)
+assert task in ['real_A', 'real_B','transfer']
 
 
 
 save_path = 'save_model/robotic_hand_real/pytorch/'
 
-model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
-    'real_B': ('save_model/robotic_hand_real/B/pos', 'save_model/robotic_hand_real/B/load'),
-    'sim_s1' : ('save_model/robotic_hand_simulator/A/d4_s1_pos', 'save_model/robotic_hand_simulator/A/d4_s1_load'),
-    'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
-    }
+# model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
+#     'real_B': ('save_model/robotic_hand_real/B/pos', 'save_model/robotic_hand_real/B/load'),
+#     'sim_s1' : ('save_model/robotic_hand_simulator/A/d4_s1_pos', 'save_model/robotic_hand_simulator/A/d4_s1_load'),
+#     'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
+#     }
 trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
     'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
     'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
-    'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
-    'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
+    'transfer': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl'
+    # 'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
+    # 'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
     }
 trajectory_path = trajectory_path_map[task]
 
 with open(trajectory_path, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
-if task in ['real_A', 'real_B']:
+if task in ['real_A', 'real_B', 'transfer']:
     real_positions = trajectory[0][test_traj]
     acts = trajectory[1][test_traj]
 
-    if task == 'real_B' and test_traj == 0:
+    if task in ['real_B', 'transfer'] and test_traj == 0:
         start = 199
         real_positions = trajectory[0][test_traj][start:]
         acts = trajectory[1][test_traj][start:]
@@ -90,7 +89,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
         state_delta = model(inpt)
-        if task == 'real_B': state_delta *= torch.tensor([-1,1,1,1], dtype=dtype)
+        # if task == 'real_B': state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
         state= state_delta + state
@@ -104,10 +103,10 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
 
 model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
 
-# with open(save_path+task + '_' + nn_type + '.pkl', 'rb') as pickle_file:
-with open(save_path+'real_A'+ '_' + nn_type + '.pkl', 'rb') as pickle_file:
+with open(save_path+task + '_' + nn_type + '.pkl', 'rb') as pickle_file:
+# with open(save_path+'real_A'+ '_' + nn_type + '.pkl', 'rb') as pickle_file:
 
-    model = torch.load(pickle_file).cpu()
+    model = torch.load(pickle_file, map_location='cpu')
 # if cuda: 
 #     model = model.cuda()
 
