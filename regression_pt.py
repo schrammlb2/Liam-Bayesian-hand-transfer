@@ -74,11 +74,12 @@ elif task == 'transfer':
 
     if method == 'constrained_retrain':
         mse_fn = torch.nn.MSELoss()
-        base_parameters = model.parameters().clone().detach()
+        base_parameters = [p.detach() for p in copy.deepcopy(model).parameters()]
         def offset_l2(new_model):
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
-                loss += torch.norm(base_parameters[i], parameter)
+                # pdb.set_trace()
+                loss += torch.norm(base_parameters[i]-parameter)
 
             return loss
 
@@ -180,6 +181,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
 
         state_delta = model(inpt)
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        if task == 'transfer': state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         sim_deltas.append(state_delta)
 
         state= state_delta + state
@@ -251,7 +253,8 @@ if __name__ == "__main__":
     print('beginning run')
 
     np.random.shuffle(out)
-    val_data = out[int(len(out)*(1-held_out)):]
+    # val_data = out[int(len(out)*(1-held_out)):]
+    val_data = out[int(len(out)*.1):]
     out = out[:int(len(out)*(1-held_out))]
     for epoch in range(500):
         print('Epoch: ' + str(epoch))
@@ -261,7 +264,7 @@ if __name__ == "__main__":
         total_completed = 0
         total_distance = 0
         switch = True
-        if epoch < 5: 
+        if epoch < 5 and task != 'transfer': 
             loss_type = 'stepwise'
             thresh = None
         # elif epoch < 6: 
@@ -293,11 +296,14 @@ if __name__ == "__main__":
             loss.backward()
             opt.step()
 
-        for i, episode in enumerate(val_data):
+        for i, episode in enumerate(val_data[:len(val_data)//2]):
             loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50)
-            total_loss += loss.data
             total_completed += completed
             total_distance += dist
+
+        for i, episode in enumerate(val_data[len(val_data)//2:]):
+            loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None)
+            total_loss += loss.data
 
         # episode = random.choice(val_data)
         # states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
