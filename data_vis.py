@@ -17,7 +17,7 @@ append = False
 held_out = .1
 test_traj = 1
 # _ , arg1, arg2, arg3 = argv
-nn_type = '0'
+nn_type = '1'
 
 if len(argv) > 1:
     test_traj = int(argv[1])
@@ -93,10 +93,11 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
         state_delta = model(inpt)
+        # state_delta = model(point[:state_dim+action_dim])
         if task == 'transferA2B': state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        
-        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
         state_deltas.append(state_delta)
+
+        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
         state= state_delta + state
         #May need random component here to prevent overfitting
         # states = torch.cat((states,state.view(1, state_dim)), 0)
@@ -110,11 +111,14 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
 model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
 
 with open(save_path+task + '_' + nn_type + '.pkl', 'rb') as pickle_file:
-# with open(save_path+'real_A'+ '_' + nn_type + '.pkl', 'rb') as pickle_file:
-
     model = torch.load(pickle_file, map_location='cpu')
-# if cuda: 
-#     model = model.cuda()
+
+models = []
+for task_iter in ['real_A', 'real_B','transferA2B','transferB2A']:
+    with open(save_path+task_iter + '_' + nn_type + '.pkl', 'rb') as pickle_file:
+        models.append(torch.load(pickle_file, map_location='cpu'))
+
+
 
 
 with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
@@ -141,19 +145,32 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 if __name__ == "__main__":
 
     state_deltas = []
-    for test_traj in range(4):
-        ground_truth = make_traj(trajectory, test_traj)
-        state_deltas += run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
+
+    sds = []
+    for m in models:
+        temp_sd = []
+        for test_traj in range(4):
+            ground_truth = make_traj(trajectory, test_traj)
+            temp_sd += run_traj(m, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
+        
+        temp_sd = torch.stack(temp_sd, 0).detach().numpy()
+
+        sds.append(temp_sd)
+    # for test_traj in range(4):
+    #     ground_truth = make_traj(trajectory, test_traj)
+    #     state_deltas += run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
 
 
-    state_deltas = torch.stack(state_deltas, 0)
-    state_deltas = state_deltas.detach().numpy()
+    # state_deltas = torch.stack(state_deltas, 0)
+    # state_deltas = state_deltas.detach().numpy()
 
 
 plt.figure(1)
 # plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
 # plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
-plt.plot(state_deltas[:, 0], state_deltas[:, 1], color='red', label='NN Prediction')
+# plt.plot(state_deltas[:, 0], state_deltas[:, 1], color='red', label='NN Prediction')
+plt.plot(sds[1][:, test_traj], sds[2][:, test_traj], color='red', label='NN Prediction')
+# plt.plot(sds[0][:, 1], sds[1][:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- pos Space')
 plt.legend()
