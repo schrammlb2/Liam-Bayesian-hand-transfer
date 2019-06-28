@@ -41,7 +41,7 @@ trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test
     'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
     'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
-    'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
+    'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl'
     # 'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
     # 'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
     }
@@ -50,21 +50,20 @@ trajectory_path = trajectory_path_map[task]
 with open(trajectory_path, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
+
 def make_traj(trajectory, test_traj):
-    real_positions = trajectory[0][test_traj]
-    acts = trajectory[1][test_traj]
+    if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
+        real_positions = trajectory[0][test_traj]
+        acts = trajectory[1][test_traj]
 
-    if task in ['real_B', 'transferA2B'] and test_traj == 0:
-        start = 199
-        real_positions = trajectory[0][test_traj][start:]
-        acts = trajectory[1][test_traj][start:]
-    
-    return np.append(real_positions, acts, axis=1)
+        if task in ['real_B', 'transferA2B'] and test_traj == 0:
+            start = 199
+            real_positions = trajectory[0][test_traj][start:]
+            acts = trajectory[1][test_traj][start:]
+        
+        return np.append(real_positions, acts, axis=1)
 
-
-if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
-    ground_truth = make_traj(trajectory, test_traj)
-
+ground_truth = make_traj(trajectory, test_traj)
 
 state_dim = 4
 action_dim = 6
@@ -78,6 +77,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     true_states = traj[:,:state_dim]
     state = traj[0][:state_dim]
     states = []#state.view(1, state_dim)
+    state_deltas = []
     # if cuda:
     #     state = state.cuda()
     #     true_states = true_states.cuda()
@@ -93,15 +93,17 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
         state_delta = model(inpt)
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        if task == 'transferA2B': state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        state_deltas.append(state_delta)
         state= state_delta + state
         #May need random component here to prevent overfitting
         # states = torch.cat((states,state.view(1, state_dim)), 0)
                 # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+    # pdb.set_trace()
     states = torch.stack(states, 0)
-    return states
+    return state_deltas
 
 
 
@@ -138,12 +140,20 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 
 if __name__ == "__main__":
 
-    states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+    state_deltas = []
+    for test_traj in range(4):
+        ground_truth = make_traj(trajectory, test_traj)
+        state_deltas += run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
+
+
+    state_deltas = torch.stack(state_deltas, 0)
+    state_deltas = state_deltas.detach().numpy()
+
 
 plt.figure(1)
-plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
-plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+# plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+# plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
+plt.plot(state_deltas[:, 0], state_deltas[:, 1], color='red', label='NN Prediction')
 plt.axis('scaled')
 plt.title('Bayesian NN Prediction -- pos Space')
 plt.legend()

@@ -19,6 +19,8 @@ for i in range(len(y_data)):
         y_data[i, 1] = - (2 * math.pi - abs(y_data[i, 1]))
     if y_data[i, 1] < -math.pi:
         y_data[i, 1] = 2 * math.pi - abs(y_data[i, 1])
+        
+    # y_data[i, 0] = ((y_data[i, 0]/(math.pi) + 1)%2 - 1) * math.pi
 
 if __name__ == "__main__":
     neural_network = BNN(nn_type='0')
@@ -30,4 +32,3 @@ if __name__ == "__main__":
 
 
 
-# y_data[i, 0] = ((y_data[i, 0]/(2*math.pi) + 1)%1 - 1) * 2*math.pi
