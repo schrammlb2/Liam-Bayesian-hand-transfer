@@ -17,9 +17,9 @@ data_type = 'pos' #type of data used for this task
 task = 'real_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
-held_out = .9
+held_out = .1
 # _ , arg1, arg2, arg3 = argv
-epochs = 500
+epochs = 250
 nn_type = '1'
 
 # pdb.set_trace()
@@ -40,7 +40,7 @@ assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
 state_dim = 4
 action_dim = 6
 alpha = .4
-lr = .000100
+lr = .0002
 new_lr = lr/2
 # lr
 # lr = .01
@@ -67,7 +67,7 @@ if task in ['real_A', 'real_B']:
 
 elif task in ['transferA2B', 'transferB2A']:
 
-    method = 'linear_transform'
+    method = 'retrain'
     if len(argv) > 5:
         method = argv[5]
 
@@ -95,14 +95,26 @@ elif task in ['transferA2B', 'transferB2A']:
         def offset_l2(new_model):
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
-                # pdb.set_trace()
                 loss += torch.norm(base_parameters[i]-parameter)
 
             return loss
 
+    if method == 'constrained_restart':
+        mse_fn = torch.nn.MSELoss()
+        base_parameters = [p.detach() for p in copy.deepcopy(model).parameters()]
+        def offset_l2(new_model):
+            loss = 0
+            for i,parameter in enumerate(new_model.parameters()):
+                loss += torch.norm(base_parameters[i]-parameter)
+
+            return loss
+        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
 
     if method == 'linear_transform':
         model = LinearTransformedModel(model, state_dim + action_dim, state_dim)
+
+    if method == 'single_transform':
+        model = torch.nn.Sequential(*[model, torch.nn.Linear(state_dim , state_dim)])
 
 
 
@@ -111,6 +123,7 @@ def pretrain(model, x_data, y_data, opt, train_load = True, epochs = 30):
     loader = torch.utils.data.DataLoader(dataset, batch_size = 64)
     # loss_fn = torch.nn.NLLLoss()
     loss_fn = torch.nn.MSELoss()
+    opt = torch.optim.Adam(model.parameters(), lr=.0003, weight_decay=.0001)
     for i in range(epochs):
         print("Pretraining epoch: " + str(i))
         for batch_ndx, sample in enumerate(loader):
@@ -127,7 +140,7 @@ def pretrain(model, x_data, y_data, opt, train_load = True, epochs = 30):
             opt.zero_grad()
 
 
-opt = torch.optim.Adam(model.parameters(), lr=lr)
+opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.0001)
 
 
 
@@ -231,7 +244,7 @@ def run_traj_batch(model, batch, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, t
         mse = torch.sum(mse, 2) #Sum two position losses at each time step to get the Euclidean distance 
         # mse = torch.sum(mse, (1,2))     #Or sum to find the maximum divergence in the batch and emphasize that
         loss = torch.logsumexp(mse, 1) #Softmax divergence over the path
-        loss = torch.sum(loss) #Sum over batch
+        loss = torch.mean(loss) #Sum over batch
         return loss
 
     def stepwise(sim_deltas):
@@ -297,6 +310,74 @@ def run_traj_batch(model, batch, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, t
 
 
 
+def batch_train(model, out, epochs = 500):
+    j=0
+    for epoch in range(epochs):
+
+        print('Epoch: ' + str(epoch))
+        np.random.shuffle(out)
+        total_loss = 0
+        # pdb.set_trace()
+        total_completed = 0
+        total_distance = 0
+        switch = True
+        loss_type = 'softmax'
+        thresh = 150
+
+        batch_size = 8
+        # if epoch > epochs/2: 
+        #     batch_size = 4
+        #     lr = new_lr
+
+
+        # pdb.set_trace()
+        batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
+        episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
+        min_lengths = [min(episode_length) for episode_length in episode_lengths]
+        # min_lengths = [min([len(ep) for ep in batch]) for batch in batch_lists]
+        rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
+        rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
+        batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
+
+        batches = [torch.stack(batch, 0) for batch in batch_slices] 
+
+
+
+        for i, batch in enumerate(batches):
+            j += 1
+            if i % 30 == 0:
+                print(i*batch_size)
+            loss, completed, dist = run_traj_batch(model, batch, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = thresh, loss_type=loss_type)
+            total_loss += loss.data
+            total_completed += completed
+            total_distance += dist
+            # pdb.set_trace()
+
+            if task == 'transferA2B':
+                if 'constrained' in method:
+                    factor = .001
+                    loss += offset_l2(model)
+                    # loss.backward()
+                if method == 'linear_transform':
+                    factor = .0001
+                    # loss = model.get_consistency_loss(episode)*factor
+
+                # loss.backward()
+
+
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+            opt.step()
+
+            opt.zero_grad()
+
+        print('Loss: ' + str(total_loss/len(batches)))
+        print('completed: ' + str(total_completed/len(batches)))
+        print('Average time before divergence: ' + str(total_distance/len(batches)))
+        with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
+            torch.save(model, pickle_file)
+
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -352,120 +433,10 @@ if __name__ == "__main__":
     np.random.shuffle(out)
     # val_data = out[int(len(out)*(1-held_out)):]
     
-    j = 0
-    pretrain(model, x_data, y_data, opt, epochs=int(30/(1-held_out)))
+    pretrain(model, x_data, y_data, opt, epochs=int(30/(1.1-held_out)))
     # out.sort(key=len, reverse=True)
     # lengths = [len(ep) for ep in out]
-
-
-    for epoch in range(epochs):
-        print('Epoch: ' + str(epoch))
-        np.random.shuffle(out)
-        total_loss = 0
-        # pdb.set_trace()
-        total_completed = 0
-        total_distance = 0
-        switch = True
-        loss_type = 'softmax'
-        thresh = 150
-
-        batch_size = 8
-        if epoch > 500: 
-            batch_size = 4
-            lr = new_lr
-
-
-        # pdb.set_trace()
-        batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
-        # episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
-        # min_lengths = [min(episode_length) for episode_length in episode_lengths]
-        min_lengths = [min([len(ep) for ep in batch]) for batch in batch_lists]
-        rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
-        rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
-        # batch_slices = [[episode[start:start+batch_size] for episode, start in zip(batch, starts)] for batch, starts in zip(batch_lists, rand_starts)]
-        batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
-
-        batches = [torch.stack(batch, 0) for batch in batch_slices] 
-
-        # print('Average episode length = ' + str(sum([batch.size[1] for batch in batches])/len(batches)))
-
-        # for 
-        
-        # batch_slices = episode[rand_start[i]: rand_start[i] + batch_size] for rand_start
-        # batch_lists
-
-
-
-        # batch_lists = [out[i: max(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
-        # min_lengths = [min([len(ep) for ep in batch]) for batch in batch_lists]
-        # rand_starts = [[random.randint(0, len(episode) - min_length) for episode in batch] for batch, min_length in zip(batch_lists,min_lengths)]
-        # batches = [torch.stack([episode[start:start+length] for episode, start in zip(batch, starts)], 0) 
-        #     for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
-            #this currently does not work
-        
-
-
-        for i, batch in enumerate(batches):
-            j += 1
-            if i % 30 == 0:
-                print(i*batch_size)
-            loss, completed, dist = run_traj_batch(model, batch, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = thresh, loss_type=loss_type)
-            total_loss += loss.data
-            total_completed += completed
-            total_distance += dist
-            # pdb.set_trace()
-
-            if task == 'transferA2B':
-                if method == 'constrained_retrain':
-                    factor = .0001
-                    loss += offset_l2(model)*factor
-                    loss.backward()
-                if method == 'linear_transform':
-                    factor = .0001
-                    # loss = model.get_consistency_loss(episode)*factor
-
-                # loss.backward()
-
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-            opt.step()
-
-            opt.zero_grad()
-
-        # for i, episode in enumerate(val_data[:len(val_data)//2]):
-        #     _ , completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50)
-        #     total_completed += completed
-        #     total_distance += dist
-
-        # for i, episode in enumerate(val_data[len(val_data)//2:]):
-        #     val_loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None)
-        #     total_loss += val_loss.data
-
-        # episode = random.choice(val_data)
-        # states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
-            
-        # eps = episode.cpu().detach().numpy()
-        # plt.figure(1)
-        # plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
-        # plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
-        # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-        # plt.axis('scaled')
-        # plt.title('Bayesian NN Prediction -- pos Space')
-        # plt.legend()
-        # plt.show()
-
-
-        # thresh = 150
-        print('Loss: ' + str(total_loss/len(batches)))
-        print('completed: ' + str(total_completed/len(batches)))
-        print('Average time before divergence: ' + str(total_distance/len(batches)))
-        with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
-            torch.save(model, pickle_file)
-        # print('Loss: ' + str(total_loss/len(val_data)))
-        # print('completed: ' + str(total_completed/len(val_data)))
-        # print('Average time before divergence: ' + str(total_distance/len(val_data)))
-        # with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
-        #     torch.save(model, pickle_file)
+    batch_train(model, out, epochs=epochs)
 
     if outfile: 
         if append:

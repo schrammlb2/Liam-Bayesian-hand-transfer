@@ -46,6 +46,7 @@ class LinearTransformedModel(torch.nn.Module):
         return mse_fn(detrans_state, inpt[:self.output_dim])
 
 
+
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p):
 	if nn_type == '0':
 		model = torch.nn.Sequential(

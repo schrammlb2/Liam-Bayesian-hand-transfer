@@ -34,6 +34,7 @@ def z_score_norm_single(data, mean_arr, std_arr):
     normalized_data = (data - mean_arr[:data.shape[-1]]) / std_arr[:data.shape[-1]]
     return normalized_data
 
+    # normalized_data = data
 
 def z_score_denorm_single(data, mean_arr, std_arr):
     denormalized_data = data * std_arr[:data.shape[-1]] + mean_arr[:data.shape[-1]]

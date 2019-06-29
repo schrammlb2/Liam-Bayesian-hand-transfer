@@ -40,7 +40,7 @@ assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
 state_dim = 4
 action_dim = 6
 alpha = .4
-lr = .00075
+lr = .0003
 # lr
 # lr = .01
 
