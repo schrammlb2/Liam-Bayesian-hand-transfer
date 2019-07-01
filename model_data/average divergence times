@@ -1,0 +1,18 @@
+15 epochs pretraining, 12 epochs trajectory
+heldout .1, l2_coeff 0.0:  342.27169811320755
+heldout .1, l2_coeff .0001:  284.46415094339625
+heldout .1, l2_coeff .0003:  308.5660377358491
+heldout .1, l2_coeff .001:  265.5698113207547
+heldout .1, l2_coeff .003:  251.40377358490565
+heldout .1, l2_coeff .01:  328.12075471698114
+heldout .1, l2_coeff .1:  296.4792452830189
+
+
+15 epochs pretraining, 12 epochs trajectory
+heldout .9, l2_coeff 0.0:  90.9
+heldout .9, l2_coeff .0001:  103.23333333333333
+heldout .9, l2_coeff .0003:  100.53333333333333
+heldout .9, l2_coeff .001:  90.0
+heldout .9, l2_coeff .003:  93.93333333333334
+heldout .9, l2_coeff .01:  90.0
+heldout .9, l2_coeff .1:  120.73333333333333

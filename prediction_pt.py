@@ -17,14 +17,18 @@ append = False
 held_out = .1
 test_traj = 1
 # _ , arg1, arg2, arg3 = argv
-nn_type = '0'
+nn_type = '1'
+method = ''
 
-if len(argv) > 1:
+if len(argv) > 1 and argv[1] != '_':
     test_traj = int(argv[1])
-if len(argv) > 2:
+if len(argv) > 2 and argv[2] != '_':
     task = argv[2]
-if len(argv) > 3:
+if len(argv) > 3 and argv[3] != '_':
     nn_type = argv[3]
+if len(argv) > 4 and argv[4] != '_' and 'transfer' in task:
+    method = 'retrain'
+    method = argv[4]
 
 assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 
@@ -78,12 +82,6 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     true_states = traj[:,:state_dim]
     state = traj[0][:state_dim]
     states = []#state.view(1, state_dim)
-    # if cuda:
-    #     state = state.cuda()
-    #     true_states = true_states.cuda()
-
-    mse_fn = torch.nn.MSELoss()#reduction='none')
-    threshold=100
 
     for i, point in enumerate(traj):
         states.append(state)
@@ -105,14 +103,22 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
 
 
 
-model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
+# model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
+model_file = save_path+task + '_' + nn_type + '.pkl'
 
-with open(save_path+task + '_' + nn_type + '.pkl', 'rb') as pickle_file:
-# with open(save_path+'real_A'+ '_' + nn_type + '.pkl', 'rb') as pickle_file:
+if method != '': 
+    model_file = save_path+task + '_' + method + '_' + nn_type + '.pkl'
+    if method == 'constrained_restart':
+        if len(argv) > 5:
+            l2_coeff = argv[5]
+            model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
+        else:
+            model_file = save_path+task + '_'  + nn_type + '.pkl'
 
+
+with open(model_file, 'rb') as pickle_file:
+    print("Running " + model_file)
     model = torch.load(pickle_file, map_location='cpu')
-# if cuda: 
-#     model = model.cuda()
 
 
 with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
@@ -136,16 +142,44 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 #     y_mean_arr = y_mean_arr.cuda()
 #     y_std_arr = y_std_arr.cuda()
 
-if __name__ == "__main__":
+max_mses = []
+mses = []
+for test_traj in range(4):
+    ground_truth = make_traj(trajectory, test_traj)
 
     states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 
-plt.figure(1)
-plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
-plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-plt.axis('scaled')
-plt.title('Bayesian NN Prediction -- pos Space')
-plt.legend()
-plt.show()
+    max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
+    mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
+    print('Maximum drift: ' + str(max_mse))
+    print('Average drift: ' + str(mse))
+    print('\n')
+    max_mses.append(max_mse)
+    mses.append(mse)
+
+    plt.figure(1)
+    plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+    plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
+    plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+    plt.axis('scaled')
+    plt.title('Bayesian NN Prediction -- pos Space')
+    plt.legend()
+
+    fig_loc = '/home/liam/results/recurrent_network_results/'
+    if 'transfer' in task: 
+        # method = 
+        fig_loc += 'transfer/'
+        fig_loc += method + '/'
+    if task == 'real_B':
+        task_str = 'real_b'
+    elif task == 'real_A':
+        task_str = 'real_a'
+    else: task_str = task
+
+    fig_loc += task_str + '_pretrain_batch/'
+    fig_loc += 'traj' + str(test_traj) + '.png'
+
+    plt.savefig(fig_loc)
+    # plt.close()
+    plt.show()
 

@@ -1,0 +1,30 @@
+
+pretrain epoch 0
+Weight norm: 5.815652606026573
+Grad norm: 4.246797094106748
+--------------------------------------------
+Batch Trajectory epoch 0
+Weight norm: 6.065939705913294
+Grad norm: 254.68237337568905
+Loss: tensor(160.0451)
+--------------------------------------------
+Full Trajectory epoch 0
+Weight norm: 6.370889180072414
+Grad norm: 32820.354123096535
+Loss: tensor(94.3671)
+--------------------------------------------
+Full Trajectory epoch 1
+Weight norm: 6.323571094232232
+Grad norm: 48640.1608317211
+Loss: tensor(56.3706)
+--------------------------------------------
+Full Trajectory epoch 2
+Weight norm: 6.316742545335666
+Grad norm: 36970.38588213668
+Loss: tensor(40.6531)
+--------------------------------------------
+Full Trajectory epoch 3
+Weight norm: 6.332106037265728
+Grad norm: 36572.17875332669
+Loss: tensor(50.1753)
+--------------------------------------------

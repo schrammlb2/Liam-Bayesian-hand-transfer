@@ -45,6 +45,55 @@ class LinearTransformedModel(torch.nn.Module):
         mse_fn = torch.nn.MSELoss()
         return mse_fn(detrans_state, inpt[:self.output_dim])
 
+class NonlinearTransformedModel(torch.nn.Module):
+    def __init__(self, old_model, input_dim, output_dim):
+        super(LinearTransformedModel, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.model = old_model
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        transform_model = torch.nn.Sequential(
+              torch.nn.Linear(input_dim, 128),
+              torch.nn.SELU(),
+              torch.nn.AlphaDropout(dropout_p),
+              torch.nn.Linear(128, 128),
+              torch.nn.SELU(),
+              torch.nn.AlphaDropout(dropout_p),
+        )
+
+        A_model = torch.nn.Linear(128, output_dim**2)
+        D_model = torch.nn.Linear(128, output_dim)
+
+        self.iden = torch.autograd.Variable(torch.tensor(np.identity(input_dim), dtype = dtype))
+            # Initialize transform as identity matrix
+    def forward(self, inpt):
+        # return self.lt(self.model(self.lt_inv(inpt)))
+
+        # pdb.set_trace()
+        feats = transform_model(inpt)
+
+        A = A_model(feats)
+        D = D_model(feats)
+
+        if len(feats.shape() == 1):
+        	A = A.view(self.output_dim, self.output_dim)
+        elif len(feats.shape() == 2):
+        	A = A.view(-1, self.output_dim, self.output_dim)
+        else: 
+        	print("Unhandled shape")
+        	pdb.set_trace()
+
+
+        mat = A + self.iden
+
+        out = self.model(inpt)
+        transformed_out = torch.matmul(out,mat) + D
+
+        return transformed_out
+
 
 
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p):
