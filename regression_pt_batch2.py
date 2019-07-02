@@ -241,7 +241,7 @@ def pretrain(model, x_data, y_data, opt, train_load = True, epochs = 30):
             else:
                 loss = loss_fn(out[:,:2], sample[1][:,:2])
 
-            loss += l2_coeff*offset_l2(model)
+            # loss += l2_coeff*offset_l2(model)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
@@ -448,7 +448,6 @@ def batch_train(model, opt, out, epochs = 500, batch_size = 8):
         batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
         episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
         min_lengths = [min(episode_length) for episode_length in episode_lengths]
-        # min_lengths = [min([len(ep) for ep in batch]) for batch in batch_lists]
         rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
         rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
         batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
@@ -614,13 +613,13 @@ if __name__ == "__main__":
         pretrain(model, x_data, y_data, opt, epochs=int(5))#/(1.1-held_out)))
         opt = torch.optim.Adam(model.parameters(), lr=.00003, weight_decay=.001)
         # opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.0003)
-        batch_train(model, opt, out, epochs=1, batch_size=8)
-        batch_train(model, opt, out, epochs=1, batch_size=4)
-        batch_train(model, opt, out, epochs=1, batch_size=2)
+        # batch_train(model, opt, out, epochs=1, batch_size=8)
+        # batch_train(model, opt, out, epochs=1, batch_size=4)
+        # batch_train(model, opt, out, epochs=1, batch_size=2)
         # batch_train(model, opt, out, epochs=10, batch_size=1)
         
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.0003)
-        traj_train(model, opt, out, val_data)
+        traj_train(model, opt, out, val_data, epochs=50)
 
     elif TEST_MODE:
         lr = .0003

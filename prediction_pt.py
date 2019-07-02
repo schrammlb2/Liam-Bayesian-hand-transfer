@@ -179,7 +179,7 @@ for test_traj in range(4):
     fig_loc += task_str + '_pretrain_batch/'
     fig_loc += 'traj' + str(test_traj) + '.png'
 
-    plt.savefig(fig_loc)
+    # plt.savefig(fig_loc)
     # plt.close()
     plt.show()
 

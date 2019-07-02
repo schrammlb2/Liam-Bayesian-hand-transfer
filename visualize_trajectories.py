@@ -24,17 +24,7 @@ nn_type = '1'
 
 # pdb.set_trace()
 if len(argv) > 1 and argv[1] != '_':
-    data_type = argv[1]
-if len(argv) > 2 and argv[2] != '_' :
-    task = argv[2]
-if len(argv) > 3 and argv[3] != '_':
-    held_out = float(argv[3])
-if len(argv) > 4 and argv[4] != '_':
-    nn_type = argv[4]
-
-assert data_type in ['pos', 'load']
-assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
-
+    task = argv[1]
 
 
 state_dim = 4
@@ -220,6 +210,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
     return get_loss(loss_type, states=states, sim_deltas=sim_deltas), 1, len(traj)
 
 
+
 def clean_data(out):
     DATA = np.concatenate(out)
     yd_pos = DATA[:, -4:-2] - DATA[:, :2]
@@ -242,6 +233,9 @@ def clean_data(out):
     return list(filter(lambda x: len(x) > length_threshold, divided_out))
 
 out = clean_data(out)
+# pdb.set_trace()
+
+
 
 DATA = np.concatenate(out)
 
@@ -253,6 +247,9 @@ task_ofs = new_state_dim + action_dim
 
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, -4:] - DATA[:, :4]
+
+
+
 
 x_mean_arr = np.mean(x_data, axis=0)
 x_std_arr = np.std(x_data, axis=0)
@@ -287,104 +284,18 @@ if __name__ == "__main__":
     thresh = 10
     print('beginning run')
 
-    np.random.shuffle(out)
-    # val_data = out[int(len(out)*(1-held_out)):]
-    val_data = out[int(len(out)*.1):]
-    out = out[:int(len(out)*(1-held_out))]
-    j = 0
-    pretrain(model, x_data, y_data, opt)
-    # pad_seq = torch.nn.pad_sequence(out)
-    # pac_pad_seq = torch.nn.pack_padded_sequence(out)
-
-    for epoch in range(epochs):
-        print('Epoch: ' + str(epoch))
-        np.random.shuffle(out)
-        total_loss = 0
-        # pdb.set_trace()
-        total_completed = 0
-        total_distance = 0
-        switch = True
-        # if epoch < 20 and task != 'transferA2B': 
-        #     loss_type = 'stepwise'
-        #     thresh = None
-        # # elif epoch < 6: 
-        # #     loss_type = 'mix'
-        # #     thresh = 100
-        # else: 
-        #     if switch == True:
-        #         switch = False
-        #         opt = torch.optim.Adam(model.parameters(), lr=lr)
-        loss_type = 'softmax'
-        thresh = 150
-
-        accum = 8
-
-
-
-        for i, episode in enumerate(out):
-            j += 1
-            if i % 30 == 0:
-                print(i)
-            loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = thresh, loss_type=loss_type)
-
-
-            loss.backward()
-
-            if j % accum ==0: 
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
-                if task == 'transferA2B':
-                    if method in ['constrained_retrain', 'constrained_restart']:
-                        factor = .0000
-                        loss = offset_l2(model)*factor
-                        loss.backward()
-                    if method == 'linear_transform':
-                        factor = .0001
-                        # loss = model.get_consistency_loss(episode)*factor
-
-                    # loss.backward()
-
-                opt.step()
-
-                opt.zero_grad()
-
-        for i, episode in enumerate(val_data[:len(val_data)//2]):
-            _ , completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50)
-            total_completed += completed
-            total_distance += dist
-
-        for i, episode in enumerate(val_data[len(val_data)//2:]):
-            val_loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None)
-            total_loss += val_loss.data
-
-        # episode = random.choice(val_data)
-        # states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
+    for episode in out:
+        states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
             
-        # eps = episode.cpu().detach().numpy()
-        # plt.figure(1)
-        # plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
-        # plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
+        eps = episode.cpu().detach().numpy()
+        plt.figure(1)
+        plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
+        plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
         # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-        # plt.axis('scaled')
-        # plt.title('Bayesian NN Prediction -- pos Space')
-        # plt.legend()
-        # plt.show()
+        plt.axis('scaled')
+        plt.title('Bayesian NN Prediction -- pos Space')
+        plt.legend()
+        plt.show()
 
 
-        thresh = 150
-        print('Loss: ' + str(total_loss/len(val_data)))
-        print('completed: ' + str(total_completed/len(val_data)))
-        print('Average time before divergence: ' + str(total_distance/len(val_data)))
-        with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
-            torch.save(model, pickle_file)
-
-    if outfile: 
-        if append:
-            f = open(outfile, 'a+')
-        else:
-            f = open(outfile, 'w+')
-        out_string= ('cold start\t' + data_type +
-                    '\t' + task + '\t' + str(held_out) +
-                    '\t:' + str(final_loss) + '\n')
-        f.write(out_string)
-        f.close()
-    
+        
