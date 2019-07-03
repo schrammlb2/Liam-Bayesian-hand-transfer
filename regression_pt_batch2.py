@@ -193,6 +193,7 @@ def weight_norm(model):
     return 
 
 def grad_norm(model):
+    return 0
     total_norm = 0
     for p in model.parameters():
         if p.requires_grad:
@@ -233,8 +234,8 @@ def pretrain(model, x_data, y_data, opt, train_load = True, epochs = 30):
             opt.zero_grad()
             # pdb.set_trace()
             out = model(sample[0])
-            if task in ['transferA2B', 'transferB2A']: 
-                out *= torch.tensor([-1,-1,1,1], dtype=dtype)
+            # if task in ['transferA2B', 'transferB2A']: 
+            #     out *= torch.tensor([-1,-1,1,1], dtype=dtype)
 
             if train_load:
                 loss = loss_fn(out, sample[1]) 
@@ -309,8 +310,8 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
         # pdb.set_trace()
         state_delta = model(inpt)
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-        if task in ['transferA2B', 'transferB2A']: 
-            state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['transferA2B', 'transferB2A']: 
+        #     state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         sim_deltas.append(state_delta)
 
         state= state_delta + state
@@ -399,7 +400,7 @@ def run_traj_batch(model, batch, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, t
         # pdb.set_trace()
         state_delta = model(inpt)
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         sim_deltas.append(state_delta)
 
         state= state_delta + state
@@ -610,16 +611,16 @@ if __name__ == "__main__":
     if 'transfer' in task and 'transform' in method:
         lr = .0003
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        pretrain(model, x_data, y_data, opt, epochs=int(5))#/(1.1-held_out)))
+        pretrain(model, x_data, y_data, opt, epochs=30)#int(15/(1.1-held_out)))#/(1.1-held_out)))
         opt = torch.optim.Adam(model.parameters(), lr=.00003, weight_decay=.001)
         # opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.0003)
         # batch_train(model, opt, out, epochs=1, batch_size=8)
-        # batch_train(model, opt, out, epochs=1, batch_size=4)
-        # batch_train(model, opt, out, epochs=1, batch_size=2)
+        # batch_train(model, opt, out, epochs=100, batch_size=4)
+        batch_train(model, opt, out, epochs=50, batch_size=2)
         # batch_train(model, opt, out, epochs=10, batch_size=1)
-        
+        # lr = .00015
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.0003)
-        traj_train(model, opt, out, val_data, epochs=50)
+        # traj_train(model, opt, out, val_data, epochs=20)#int(12/(1.1-held_out)))
 
     elif TEST_MODE:
         lr = .0003

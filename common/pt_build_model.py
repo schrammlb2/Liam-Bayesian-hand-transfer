@@ -65,9 +65,11 @@ class NonlinearTransformedModel(torch.nn.Module):
         )
 
         self.A_model = torch.nn.Linear(128, output_dim**2)
+        # self.A_model = torch.nn.Linear(128, output_dim**2)
         self.D_model = torch.nn.Linear(128, output_dim)
 
-        self.iden = torch.autograd.Variable(torch.tensor(np.identity(output_dim), dtype = dtype))
+        self.rotation_matrix = np.diag(np.array([-1,-1,1,1]))
+        self.iden = torch.autograd.Variable(torch.tensor(self.rotation_matrix, dtype = dtype))
             # Initialize transform as identity matrix
     def forward(self, inpt):
         # return self.lt(self.model(self.lt_inv(inpt)))
@@ -75,23 +77,31 @@ class NonlinearTransformedModel(torch.nn.Module):
         # pdb.set_trace()
         feats = self.transform_model(inpt)
 
-        A = self.A_model(feats)
-        D = self.D_model(feats)
+        A = self.A_model(feats)*.015
+        D = self.D_model(feats)*.1
+        skip = True
 
-        if len(feats.shape) == 1:
-        	A = A.view(self.output_dim, self.output_dim)
-        elif len(feats.shape) == 2:
-        	A = A.view(-1, self.output_dim, self.output_dim)
-        else: 
-        	print("Unhandled shape")
-        	pdb.set_trace()
+        if skip:
+        	transformed_out = D
+        else:
+            if len(feats.shape) == 1:
+            	A = A.view(self.output_dim, self.output_dim)
+            elif len(feats.shape) == 2:
+            	A = A.view(-1, self.output_dim, self.output_dim)
+            else: 
+            	print("Unhandled shape")
+            	pdb.set_trace()
 
+            mat = A + self.iden
+            out = self.model(inpt).detach()
 
-        mat = A + self.iden
-
-        out = self.model(inpt)
-        transformed_out = torch.matmul(out,mat) + D
-
+            if len(feats.shape) == 1:
+                transformed_out = torch.matmul(mat, out) + D
+            elif len(feats.shape) == 2:
+                out2 = torch.unsqueeze(out, -1)
+                transformed_out = (torch.bmm(mat,out2) + D.unsqueeze(-1)).squeeze(-1)
+            # transformed_out = out + D
+        # pdb.set_trace()
         return transformed_out
 
 

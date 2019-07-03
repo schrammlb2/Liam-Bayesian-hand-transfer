@@ -101,11 +101,11 @@ train_data = out[cutoff:]
 
 
 training_file_name = 'data/robotic_hand_real/B/B_training_episodes.obj'
-with open(training_file_name, 'rb') as pickle_file:
+with open(training_file_name, 'wb') as pickle_file:
     pickle.dump(train_data, pickle_file)
 
 test_file_name = 'data/robotic_hand_real/B/B_test_episodes.obj'
-with open(training_file_name, 'rb') as pickle_file:
+with open(training_file_name, 'wb') as pickle_file:
     pickle.dump(train_data, pickle_file)
 # pdb.set_trace()
 

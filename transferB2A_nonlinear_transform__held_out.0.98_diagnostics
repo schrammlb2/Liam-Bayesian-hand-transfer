@@ -1,0 +1,371 @@
+
+pretrain epoch 0
+Weight norm: 28.778316870776887
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 1
+Weight norm: 28.816825925618346
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 2
+Weight norm: 28.790470420410298
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 3
+Weight norm: 28.74640337690998
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 4
+Weight norm: 28.701242229091577
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 5
+Weight norm: 28.659238171700125
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 6
+Weight norm: 28.619433700351326
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 7
+Weight norm: 28.58465292120012
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 8
+Weight norm: 28.55246450207207
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 9
+Weight norm: 28.52616639338425
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 10
+Weight norm: 28.503629037722217
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 11
+Weight norm: 28.484218026976084
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 12
+Weight norm: 28.467867094282376
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 13
+Weight norm: 28.45485017822594
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 14
+Weight norm: 28.44757675670424
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 15
+Weight norm: 28.440558659207205
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 16
+Weight norm: 28.43594662078518
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 17
+Weight norm: 28.43442082498386
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 18
+Weight norm: 28.434658568318238
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 19
+Weight norm: 28.43662620361216
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 20
+Weight norm: 28.438558044612932
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 21
+Weight norm: 28.442667943930783
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 22
+Weight norm: 28.446585760562048
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 23
+Weight norm: 28.4508810908096
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 24
+Weight norm: 28.457877466777447
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 25
+Weight norm: 28.46134157052914
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 26
+Weight norm: 28.464946109031434
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 27
+Weight norm: 28.469491078466856
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 28
+Weight norm: 28.47263427411001
+Grad norm: 0
+--------------------------------------------
+pretrain epoch 29
+Weight norm: 28.475436037132365
+Grad norm: 0
+--------------------------------------------
+Batch Trajectory epoch 0
+Weight norm: 28.475531283419468
+Grad norm: 0.0
+Loss: tensor(640.9985)
+--------------------------------------------
+Batch Trajectory epoch 1
+Weight norm: 28.47563588949358
+Grad norm: 0.0
+Loss: tensor(423.9462)
+--------------------------------------------
+Batch Trajectory epoch 2
+Weight norm: 28.475732846555612
+Grad norm: 0.0
+Loss: tensor(512.9279)
+--------------------------------------------
+Batch Trajectory epoch 3
+Weight norm: 28.475828363300987
+Grad norm: 0.0
+Loss: tensor(399.0591)
+--------------------------------------------
+Batch Trajectory epoch 4
+Weight norm: 28.475914791961905
+Grad norm: 0.0
+Loss: tensor(403.8214)
+--------------------------------------------
+Batch Trajectory epoch 5
+Weight norm: 28.476003707754977
+Grad norm: 0.0
+Loss: tensor(512.0636)
+--------------------------------------------
+Batch Trajectory epoch 6
+Weight norm: 28.476096117754718
+Grad norm: 0.0
+Loss: tensor(640.3487)
+--------------------------------------------
+Batch Trajectory epoch 7
+Weight norm: 28.476185744765303
+Grad norm: 0.0
+Loss: tensor(425.7468)
+--------------------------------------------
+Batch Trajectory epoch 8
+Weight norm: 28.47627256138957
+Grad norm: 0.0
+Loss: tensor(425.0823)
+--------------------------------------------
+Batch Trajectory epoch 9
+Weight norm: 28.476362686391422
+Grad norm: 0.0
+Loss: tensor(730.2286)
+--------------------------------------------
+Batch Trajectory epoch 10
+Weight norm: 28.476455448790833
+Grad norm: 0.0
+Loss: tensor(527.4653)
+--------------------------------------------
+Batch Trajectory epoch 11
+Weight norm: 28.47652194082348
+Grad norm: 0.0
+Loss: tensor(347.2466)
+--------------------------------------------
+Batch Trajectory epoch 12
+Weight norm: 28.476591525438092
+Grad norm: 0.0
+Loss: tensor(423.6469)
+--------------------------------------------
+Batch Trajectory epoch 13
+Weight norm: 28.47662780598942
+Grad norm: 0.0
+Loss: tensor(460.1573)
+--------------------------------------------
+Batch Trajectory epoch 14
+Weight norm: 28.47667055230642
+Grad norm: 0.0
+Loss: tensor(400.6469)
+--------------------------------------------
+Batch Trajectory epoch 15
+Weight norm: 28.47671974465747
+Grad norm: 0.0
+Loss: tensor(404.3122)
+--------------------------------------------
+Batch Trajectory epoch 16
+Weight norm: 28.47677745101922
+Grad norm: 0.0
+Loss: tensor(512.5590)
+--------------------------------------------
+Batch Trajectory epoch 17
+Weight norm: 28.476838900139384
+Grad norm: 0.0
+Loss: tensor(513.1556)
+--------------------------------------------
+Batch Trajectory epoch 18
+Weight norm: 28.47690602777952
+Grad norm: 0.0
+Loss: tensor(511.0462)
+--------------------------------------------
+Batch Trajectory epoch 19
+Weight norm: 28.47697980473786
+Grad norm: 0.0
+Loss: tensor(398.8802)
+--------------------------------------------
+Batch Trajectory epoch 20
+Weight norm: 28.47705592788285
+Grad norm: 0.0
+Loss: tensor(400.4027)
+--------------------------------------------
+Batch Trajectory epoch 21
+Weight norm: 28.477124554559715
+Grad norm: 0.0
+Loss: tensor(461.3215)
+--------------------------------------------
+Batch Trajectory epoch 22
+Weight norm: 28.477190985965212
+Grad norm: 0.0
+Loss: tensor(425.2196)
+--------------------------------------------
+Batch Trajectory epoch 23
+Weight norm: 28.47726739491583
+Grad norm: 0.0
+Loss: tensor(616.3222)
+--------------------------------------------
+Batch Trajectory epoch 24
+Weight norm: 28.47734806931366
+Grad norm: 0.0
+Loss: tensor(403.3736)
+--------------------------------------------
+Batch Trajectory epoch 25
+Weight norm: 28.477430200619622
+Grad norm: 0.0
+Loss: tensor(402.9357)
+--------------------------------------------
+Batch Trajectory epoch 26
+Weight norm: 28.477512351130777
+Grad norm: 0.0
+Loss: tensor(512.4009)
+--------------------------------------------
+Batch Trajectory epoch 27
+Weight norm: 28.47760397742309
+Grad norm: 0.0
+Loss: tensor(637.2535)
+--------------------------------------------
+Batch Trajectory epoch 28
+Weight norm: 28.477698562598682
+Grad norm: 0.0
+Loss: tensor(399.1281)
+--------------------------------------------
+Batch Trajectory epoch 29
+Weight norm: 28.477796377633254
+Grad norm: 0.0
+Loss: tensor(399.7840)
+--------------------------------------------
+Batch Trajectory epoch 30
+Weight norm: 28.477895610584415
+Grad norm: 0.0
+Loss: tensor(511.0259)
+--------------------------------------------
+Batch Trajectory epoch 31
+Weight norm: 28.477957364867613
+Grad norm: 0.0
+Loss: tensor(351.1938)
+--------------------------------------------
+Batch Trajectory epoch 32
+Weight norm: 28.478027274027944
+Grad norm: 0.0
+Loss: tensor(530.2352)
+--------------------------------------------
+Batch Trajectory epoch 33
+Weight norm: 28.47810381846305
+Grad norm: 0.0
+Loss: tensor(640.2206)
+--------------------------------------------
+Batch Trajectory epoch 34
+Weight norm: 28.47818506264682
+Grad norm: 0.0
+Loss: tensor(404.0524)
+--------------------------------------------
+Batch Trajectory epoch 35
+Weight norm: 28.47827295058637
+Grad norm: 0.0
+Loss: tensor(637.9011)
+--------------------------------------------
+Batch Trajectory epoch 36
+Weight norm: 28.47836508676988
+Grad norm: 0.0
+Loss: tensor(637.8926)
+--------------------------------------------
+Batch Trajectory epoch 37
+Weight norm: 28.478461054532517
+Grad norm: 0.0
+Loss: tensor(511.7308)
+--------------------------------------------
+Batch Trajectory epoch 38
+Weight norm: 28.478557779228158
+Grad norm: 0.0
+Loss: tensor(510.3467)
+--------------------------------------------
+Batch Trajectory epoch 39
+Weight norm: 28.478657276823515
+Grad norm: 0.0
+Loss: tensor(530.4198)
+--------------------------------------------
+Batch Trajectory epoch 40
+Weight norm: 28.478757850461704
+Grad norm: 0.0
+Loss: tensor(399.4810)
+--------------------------------------------
+Batch Trajectory epoch 41
+Weight norm: 28.478865864284785
+Grad norm: 0.0
+Loss: tensor(636.6768)
+--------------------------------------------
+Batch Trajectory epoch 42
+Weight norm: 28.47897454463864
+Grad norm: 0.0
+Loss: tensor(398.1636)
+--------------------------------------------
+Batch Trajectory epoch 43
+Weight norm: 28.47905976446001
+Grad norm: 0.0
+Loss: tensor(440.6693)
+--------------------------------------------
+Batch Trajectory epoch 44
+Weight norm: 28.47914461440019
+Grad norm: 0.0
+Loss: tensor(512.0206)
+--------------------------------------------
+Batch Trajectory epoch 45
+Weight norm: 28.47923628594903
+Grad norm: 0.0
+Loss: tensor(640.6091)
+--------------------------------------------
+Batch Trajectory epoch 46
+Weight norm: 28.479304164226168
+Grad norm: 0.0
+Loss: tensor(439.4689)
+--------------------------------------------
+Batch Trajectory epoch 47
+Weight norm: 28.479377641275523
+Grad norm: 0.0
+Loss: tensor(416.5974)
+--------------------------------------------
+Batch Trajectory epoch 48
+Weight norm: 28.47946134362674
+Grad norm: 0.0
+Loss: tensor(526.6257)
+--------------------------------------------
+Batch Trajectory epoch 49
+Weight norm: 28.47954774818698
+Grad norm: 0.0
+Loss: tensor(638.6967)
+--------------------------------------------
