@@ -52,21 +52,32 @@ class NonlinearTransformedModel(torch.nn.Module):
         self.output_dim = output_dim
 
         self.model = old_model
-        for param in self.model.parameters():
-            param.requires_grad = False
+        # for param in self.model.parameters():
+        #     param.requires_grad = False
 
         self.transform_model = torch.nn.Sequential(
-              torch.nn.Linear(input_dim, 128),
+              # torch.nn.Linear(input_dim, 128),
+              torch.nn.Linear(input_dim+output_dim, 128),
               torch.nn.SELU(),
               torch.nn.AlphaDropout(.1),
               torch.nn.Linear(128, 128),
               torch.nn.SELU(),
               torch.nn.AlphaDropout(.1),
         )
+        # pdb.set_trace()
 
         self.A_model = torch.nn.Linear(128, output_dim**2)
         # self.A_model = torch.nn.Linear(128, output_dim**2)
         self.D_model = torch.nn.Linear(128, output_dim)
+        # self.D_model = torch.nn.Sequential(
+        #         torch.nn.Linear(128, output_dim),
+        #         torch.nn.Tanh(),
+        #         torch.nn.Linear(output_dim, output_dim),
+        #         )
+        self.gate = torch.nn.Sequential(
+                torch.nn.Linear(128, output_dim),
+                torch.nn.Sigmoid()
+                )
 
         self.rotation_matrix = np.diag(np.array([-1,-1,1,1]))
         self.iden = torch.autograd.Variable(torch.tensor(self.rotation_matrix, dtype = dtype))
@@ -75,15 +86,27 @@ class NonlinearTransformedModel(torch.nn.Module):
         # return self.lt(self.model(self.lt_inv(inpt)))
 
         # pdb.set_trace()
-        feats = self.transform_model(inpt)
 
-        A = self.A_model(feats)*.015
-        D = self.D_model(feats)*.1
+        out = self.model(inpt)#.detach()
+        new_inpt = torch.cat((inpt, out), dim=-1)
+        feats = self.transform_model(new_inpt)
+        # feats = self.transform_model(inpt)
+        # 
+        D = self.D_model(feats)#*0.1
+        alpha = self.gate(feats)
+        # skip = False
         skip = True
+        gradient_decay = .1
 
         if skip:
-        	transformed_out = D
+            D1 = D*(1-gradient_decay)
+            D2 = (D*gradient_decay).detach()
+            D_new = D1+D2
+        	# transformed_out = D
+            # transformed_out = (1-alpha)*out + D*alpha
+            transformed_out = (1-alpha)*out + D_new*alpha
         else:
+            A = self.A_model(feats)*.05
             if len(feats.shape) == 1:
             	A = A.view(self.output_dim, self.output_dim)
             elif len(feats.shape) == 2:
@@ -93,18 +116,25 @@ class NonlinearTransformedModel(torch.nn.Module):
             	pdb.set_trace()
 
             mat = A + self.iden
-            out = self.model(inpt).detach()
+            # out = self.model(inpt)#.detach()
+            # transformed_out = (1-alpha)*out + D*alpha
 
             if len(feats.shape) == 1:
-                transformed_out = torch.matmul(mat, out) + D
+                # transformed_out = torch.matmul(mat, out) + D
+                t_out = torch.matmul(mat, out)
             elif len(feats.shape) == 2:
                 out2 = torch.unsqueeze(out, -1)
-                transformed_out = (torch.bmm(mat,out2) + D.unsqueeze(-1)).squeeze(-1)
+                # transformed_out = (torch.bmm(mat,out2)*.0 + D.unsqueeze(-1)).squeeze(-1)
+                t_out = torch.bmm(mat,out2).squeeze(-1)
+
+            transformed_out = (1-alpha)*t_out + D*alpha
             # transformed_out = out + D
         # pdb.set_trace()
         return transformed_out
 
-
+    def set_base_model_train(self, setting):
+        for param in self.model.parameters():
+            param.requires_grad = setting
 
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p):
 	if nn_type == '0':

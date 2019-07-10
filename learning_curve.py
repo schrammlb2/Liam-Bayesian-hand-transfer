@@ -26,9 +26,11 @@ if len(argv) > 2 and argv[2] != '_':
     task = argv[2]
 if len(argv) > 3 and argv[3] != '_':
     nn_type = argv[3]
-if len(argv) > 4 and argv[4] != '_' and 'transfer' in task:
+if len(argv) > 4 and argv[4] != '_':
+    held_out = argv[4]
+if len(argv) > 5 and argv[5] != '_' and 'transfer' in task:
     method = 'retrain'
-    method = argv[4]
+    method = argv[5]
 
 assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 
@@ -54,17 +56,6 @@ trajectory_path = trajectory_path_map[task]
 with open(trajectory_path, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
-
-
-state_dim = 4
-action_dim = 6
-alpha = .4
-
-dtype = torch.float
-cuda = False#torch.cuda.is_available()
-print('cuda is_available: '+ str(cuda))
-
-
 def make_traj(trajectory, test_traj):
     real_positions = trajectory[0][test_traj]
     acts = trajectory[1][test_traj]
@@ -80,6 +71,14 @@ def make_traj(trajectory, test_traj):
 if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
     ground_truth = make_traj(trajectory, test_traj)
 
+
+state_dim = 4
+action_dim = 6
+alpha = .4
+
+dtype = torch.float
+cuda = False#torch.cuda.is_available()
+print('cuda is_available: '+ str(cuda))
 
 def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     true_states = traj[:,:state_dim]
@@ -108,21 +107,22 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
 
 
 # model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
-model_file = save_path+task + '_' + nn_type + '.pkl'
-
-if method != '': 
-    model_file = save_path+task + '_' + method + '_' + nn_type + '.pkl'
-    if method == 'constrained_restart':
-        if len(argv) > 5:
-            l2_coeff = argv[5]
-            model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
-        else:
-            model_file = save_path+task + '_'  + nn_type + '.pkl'
+# model_file = save_path+task + '_' + nn_type + '.pkl'
 
 
-with open(model_file, 'rb') as pickle_file:
-    print("Running " + model_file)
-    model = torch.load(pickle_file, map_location='cpu')
+# if method != '': 
+#     model_file = save_path+task + '_' + method + '_' + nn_type + '.pkl'
+#     if method == 'constrained_restart':
+#         if len(argv) > 5:
+#             l2_coeff = argv[5]
+#             model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
+#         else:
+#             model_file = save_path+task + '_'  + nn_type + '.pkl'
+
+
+
+
+
 
 
 with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
@@ -146,46 +146,68 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 #     y_mean_arr = y_mean_arr.cuda()
 #     y_std_arr = y_std_arr.cuda()
 
-max_mses = []
-mses = []
-for test_traj in range(4):
-    ground_truth = make_traj(trajectory, test_traj)
+def get_lc(task):
+    held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
+    mean_max_mses = []
+    mean_mses = []
+    method = 'nonlinear_transform'
+    for held_out in held_out_list:
+        max_mses = []
+        mses = []
 
-    states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+        if task in ['real_B', 'real_A']:
+            model_file = save_path+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+        else:
+            model_file =save_path+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+            # model_file =save_path+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+        with open(model_file, 'rb') as pickle_file:
+            print("Running " + model_file)
+            model = torch.load(pickle_file, map_location='cpu')
 
-    max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
-    mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
-    print('Maximum drift: ' + str(max_mse))
-    print('Average drift: ' + str(mse))
-    print('\n')
-    max_mses.append(max_mse)
-    mses.append(mse)
+        for test_traj in range(4):
+            ground_truth = make_traj(trajectory, test_traj)
 
-    plt.figure(1)
-    plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-    plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
-    plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-    plt.axis('scaled')
-    plt.title('NN Prediction -- pos Space')
-    plt.legend()
+            states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 
-    fig_loc = '/home/liam/results/recurrent_network_results/'
-    if 'transfer' in task: 
-        # method = 
-        fig_loc += 'transfer/'
-        fig_loc += method + '/'
-    if task == 'real_B':
-        task_str = 'real_b'
-    elif task == 'real_A':
-        task_str = 'real_a'
-    else: task_str = task
+            max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
+            mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
+            print('Maximum drift: ' + str(max_mse))
+            print('Average drift: ' + str(mse))
+            print('\n')
+            max_mses.append(max_mse)
+            mses.append(mse)
 
-    fig_loc += task_str + '_pretrain_batch/'
-    fig_loc += 'traj' + str(test_traj) + '.png'
+        mean_max_mses.append(np.mean(max_mses))
+        mean_mses.append(np.mean(mses))
+    return (np.stack(mean_max_mses,0), np.stack(mean_mses,0))
 
-    # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
+lc_nl_trans = get_lc('transferB2A')
+lc_real_a = get_lc('real_A')
 
-    # plt.savefig(fig_loc)
-    # plt.close()
-    plt.show()
+held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
 
+held_out_arr = 1 - np.array(held_out_list[1:])
+
+# pdb.set_trace()
+# lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
+
+plt.figure(1)
+plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
+plt.plot(held_out_arr, lc_real_a[1][1:], color='blue', label='New model')
+# plt.axis('scaled')
+plt.title('Error by data quantity')
+plt.legend()
+fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_mean_heldout' + str(held_out)+ '_traj_' + str(test_traj) + '.png'
+plt.savefig(fig_loc)
+plt.close()
+
+
+plt.figure(1)
+plt.plot(held_out_arr, lc_nl_trans[0][1:], color='red', label='Transfer model')
+plt.plot(held_out_arr, lc_real_a[0][1:], color='blue', label='New model')
+# plt.axis('scaled')
+plt.title('Maximum divergence by data quantity')
+plt.legend()
+fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_max_heldout' + str(held_out)+ '_traj_' + str(test_traj) + '.png'
+plt.savefig(fig_loc)
+plt.close()

@@ -7,14 +7,9 @@ import matplotlib.pyplot as plt
 import time
 from common.data_normalization import *
 import pickle
-
+import random
 
 class predict_nn:
-
-
-    state_action_dim = 10
-    state_dim = 4
-
     def __init__(self):
 
         base_path = ''
@@ -47,11 +42,9 @@ class predict_nn:
         state_delta = self.model(inpt)
         state_delta = state_delta.detach().numpy()
         state_delta = self.denormalize(state_delta)
-        
-        next_state = (sa[:4] + state_delta)
+
+        next_state = (sa[...,:4] + state_delta)
         return next_state
-
-
 
 
 
@@ -60,7 +53,7 @@ class predict_nn:
 # if __name__ == "__main__":
 #     task = 'real_A' 
 #     held_out = .1
-#     test_traj = 1
+#     test_traj = 0
 #     # _ , arg1, arg2, arg3 = argv
 #     nn_type = '1'
 #     method = ''
@@ -87,28 +80,73 @@ class predict_nn:
 #     action_dim = 6
 
 
-#     traj = make_traj(trajectory, test_traj)
 
-#     true_states = traj[:,:state_dim]
-#     state = traj[0][:state_dim]
+#     BATCH = True
+#     # BATCH = False
+#     if BATCH:
+#         batch_size = 4
+#         out=[make_traj(trajectory, i) for i in range(batch_size)]
 
+
+#         batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
+#         episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
+#         min_lengths = [min(episode_length) for episode_length in episode_lengths]
+#         rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
+#         rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
+#         batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
+
+#         batches = [np.stack(batch, 0) for batch in batch_slices]      
+
+#         traj = np.concatenate(batches,0)
+#         true_states = traj[:,:,:state_dim]
+#         state = traj[:,0,:state_dim]
+
+#     else:
+#         traj = make_traj(trajectory, test_traj)
+#         true_states = traj[:,:state_dim]
+#         state = traj[0][:state_dim]
+    
 #     states = []
 
-#     for i, point in enumerate(traj):
-#         states.append(state)
-#         action = point[state_dim:state_dim+action_dim]
-#         # if cuda: action = action.cuda()    
-#         sa = np.concatenate((state, action), 0)
-#         state = NN.predict(sa)
+#     if BATCH:
+#         for i in range(traj.shape[1]):
+#             point = traj[:,i]
+#             states.append(state)
+#             action = point[..., state_dim:state_dim+action_dim]
+#             # if cuda: action = action.cuda() 
+#             sa = np.concatenate((state, action), -1)
+#             state = NN.predict(sa)
+#         states = np.stack(states, 1)
 
-#     states = np.stack(states, 0)
+#     else: 
+#         for i, point in enumerate(traj):
+#             states.append(state)
+#             action = point[state_dim:state_dim+action_dim]
+#             # if cuda: action = action.cuda() 
+#             pdb.set_trace()
+#             sa = np.concatenate((state, action), 0)
+#             state = NN.predict(sa)
+#         states = np.stack(states, 0)
 
-#     plt.figure(1)
-#     plt.scatter(traj[0, 0], traj[0, 1], marker="*", label='start')
-#     plt.plot(traj[:, 0], traj[:, 1], color='blue', label='Ground Truth', marker='.')
-#     plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-#     plt.axis('scaled')
-#     plt.title('Bayesian NN Prediction -- pos Space')
-#     plt.legend()
-#     plt.show()
+
+#     if BATCH:
+#         plt.figure(1)
+#         plt.scatter(traj[0, 0, 0], traj[0, 0, 1], marker="*", label='start')
+#         plt.plot(traj[0, :, 0], traj[0, :, 1], color='blue', label='Ground Truth', marker='.')
+#         plt.plot(states[0, :, 0], states[0, :, 1], color='red', label='NN Prediction')
+#         plt.axis('scaled')
+#         plt.title('Bayesian NN Prediction -- pos Space')
+#         plt.legend()
+#         plt.show()
+
+
+#     else:
+#         plt.figure(1)
+#         plt.scatter(traj[0, 0], traj[0, 1], marker="*", label='start')
+#         plt.plot(traj[:, 0], traj[:, 1], color='blue', label='Ground Truth', marker='.')
+#         plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+#         plt.axis('scaled')
+#         plt.title('Bayesian NN Prediction -- pos Space')
+#         plt.legend()
+#         plt.show()
 

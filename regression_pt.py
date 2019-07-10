@@ -8,19 +8,22 @@ import torch
 import torch.utils.data
 from common.data_normalization import *
 from common.pt_build_model import *
+from common.utils import *
 import random
 import matplotlib.pyplot as plt
 
 from sys import argv
 
 data_type = 'pos' #type of data used for this task
-task = 'transferA2B' #Which task we're training. This tells us what file to use
+task = 'real_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
 held_out = .1
 # _ , arg1, arg2, arg3 = argv
-epochs = 12
+epochs = 250
 nn_type = '1'
+SAVE = False
+method = None
 
 # pdb.set_trace()
 if len(argv) > 1 and argv[1] != '_':
@@ -40,9 +43,11 @@ assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
 state_dim = 4
 action_dim = 6
 alpha = .4
-lr = .0003
+lr = .0002
+new_lr = lr/2
 # lr
 # lr = .01
+dropout_rate = .1
 
 dtype = torch.float
 cuda = torch.cuda.is_available()
@@ -58,16 +63,25 @@ if task in ['real_A', 'real_B']:
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
-    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, .1)
+    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
     if cuda: 
         model = model.cuda()
+
+    model_save_path = save_path+'/'+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+
+
+
+    l2_coeff = .000
+
 
 
 elif task in ['transferA2B', 'transferB2A']:
 
-    method = 'linear_transform'
+    method = 'retrain'
     if len(argv) > 5:
         method = argv[5]
+
+
 
     if task == 'transferA2B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
@@ -78,6 +92,16 @@ elif task in ['transferA2B', 'transferB2A']:
         save_path = 'save_model/robotic_hand_real/pytorch'
         save_file = save_path+'/real_B'+ '_' + nn_type + '.pkl'
 
+
+
+    model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+
+
+    if method in ['constrained_retrain', 'constrained_restart']:
+        l2_coeff = .001
+        if len(argv) > 6:
+            l2_coeff = float(argv[6])
+            model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + str(l2_coeff) + '_' + nn_type + '.pkl'
 
 
     with open(datafile_name, 'rb') as pickle_file:
@@ -93,7 +117,6 @@ elif task in ['transferA2B', 'transferB2A']:
         def offset_l2(new_model):
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
-                # pdb.set_trace()
                 loss += torch.norm(base_parameters[i]-parameter)
 
             return loss
@@ -104,144 +127,88 @@ elif task in ['transferA2B', 'transferB2A']:
         def offset_l2(new_model):
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
-                # pdb.set_trace()
                 loss += torch.norm(base_parameters[i]-parameter)
 
             return loss
-        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, .1)
-
+        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
 
     elif method == 'linear_transform':
         model = LinearTransformedModel(model, state_dim + action_dim, state_dim)
 
-    else: assert False
+    elif method == 'nonlinear_transform':
+        model = NonlinearTransformedModel(model, state_dim + action_dim, state_dim)
+        # model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)        
 
+    elif method == 'single_transform':
+        model = torch.nn.Sequential(*[model, torch.nn.Linear(state_dim , state_dim)])
+        for param in model[0].parameters():
+            param.requires_grad = False
 
-def pretrain(model, x_data, y_data, opt, train_load = True):
-    dataset = torch.utils.data.TensorDataset(x_data, y_data)
-    loader = torch.utils.data.DataLoader(dataset, batch_size = 64)
-    # loss_fn = torch.nn.NLLLoss()
-    loss_fn = torch.nn.MSELoss()
-    for i in range(30):
-        print("Pretraining epoch: " + str(i))
-        for batch_ndx, sample in enumerate(loader):
-            # pdb.set_trace()
-            out = model(sample[0])
-            if train_load:
-                loss = loss_fn(out, sample[1]) 
-            else:
-                loss = loss_fn(out[:,:2], sample[1][:,:2])
-            loss.backward()
-
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
-            opt.step()
-            opt.zero_grad()
-
-
-opt = torch.optim.Adam(model.parameters(), lr=lr)
+    else: 
+        print("Invalid method type")
+        assert False
 
 
 
-def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50, return_states = False, 
-    loss_type = 'softmax', alpha = .5):
-    true_states = traj[:,:state_dim]
-    state = traj[0][:state_dim]
-    states = []#state.view(1, state_dim)
-    sim_deltas = []
-    if cuda:
-        state = state.cuda()
-        true_states = true_states.cuda()
+# outfile_name = task + '_diagnostics'
+# if 'transfer' in task:  
+#     outfile_name = task + '_' + method + '_'
+#     if method == 'constrained_restart':
+#         outfile_name += 'l2.'+str(l2_coeff)
 
-    mse_fn = torch.nn.MSELoss()
+#     outfile_name += '_held_out.'+str(held_out)
+#     outfile_name+='_diagnostics'
 
-    def softmax(states):
-        mse_fn = torch.nn.MSELoss(reduction='none')
-        mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
-        mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
-        return torch.logsumexp(mse, 0)
-
-    def stepwise(sim_deltas):
-        # sim_deltas = states[1:, :2] - states[:-1, :2] #starting position version
-        # real_deltas = traj[1:, :2] - traj[:-1, :2] #starting position version
-        real_deltas = traj[:, :2] - traj[:, -4:-2] # y_data version
-        mse_fn = torch.nn.MSELoss()
-        mse = mse_fn(sim_deltas[:,:2], real_deltas[:len(sim_deltas)])
-        return mse
-
-    def mix(sim_deltas, states, alpha = .65):
-        return stepwise(sim_deltas)*alpha + softmax(states)*(1-alpha)
-
-    def get_loss(loss_type, states = None, sim_deltas = None):
-        if loss_type == 'soft maximum':
-            loss = softmax(states)
-        if loss_type == 'mix':
-            loss = mix(sim_deltas, states)
-            return loss
-        else:
-            mse_fn = torch.nn.MSELoss()
-            loss = mse_fn(states[:,:2], true_states[:,:2])
-
-        return loss
-
-    for i, point in enumerate(traj):
-        states.append(state)
-        action = point[state_dim:state_dim+action_dim]
-        if cuda: action = action.cuda()    
-        inpt = torch.cat((state, action), 0)
-        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
-
-        # pdb.set_trace()
-        state_delta = model(inpt)
-        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        sim_deltas.append(state_delta)
-
-        state= state_delta + state
-
-        #May need random component here to prevent overfitting
-        # states = torch.cat((states,state.view(1, state_dim)), 0)
-        if threshold and i%10:
-            with torch.no_grad():
-                mse = mse_fn(state[:2], true_states[i,:2])
-            if mse > threshold:
-                states = torch.stack(states, 0)
-                sim_deltas = torch.stack(sim_deltas, 0)
-                # loss = mix(sim_deltas, states, alpha)
-                loss = softmax(states)
-                # loss = get_loss(loss_type, states=states, sim_deltas=sim_deltas)
-                return loss, 0, i
-                # return mse_fn(state[:2], true_states[i,:2]), 0, i
-
-    sim_deltas = torch.stack(sim_deltas, 0)
-    states = torch.stack(states, 0)
-    if return_states:
-        return states
-
-    return get_loss(loss_type, states=states, sim_deltas=sim_deltas), 1, len(traj)
+# diagnostics_file = open(outfile_name, 'w+')
+# diagnostics_file.write('\n')
+# diagnostics_file.close()
 
 
-def clean_data(out):
-    DATA = np.concatenate(out)
-    yd_pos = DATA[:, -4:-2] - DATA[:, :2]
-    y2 = np.sum(yd_pos**2, axis=1)
-    max_dist = np.percentile(y2, 99.84)
+# def diagnostics(model, train_type = None, epoch=None, loss=None, divergence=None, grad_norms= None):
+#     try:
+#         wn = weight_norm(model)
+#         if grad_norms:
+#             gn = sum(grad_norms)/len(grad_norms)
+#         else:
+#             gn = grad_norm(model)
+#         diag_str = ''
+#         if train_type:
+#             diag_str += train_type + ' epoch ' + str(epoch) + '\n'
+#         diag_str += 'Weight norm: ' + str(wn) + '\n'
+#         diag_str += 'Grad norm: ' + str(gn) + '\n'
+#         if loss: 
+#             diag_str += 'Loss: ' + str(loss) + '\n'
+#         if divergence: 
+#             diag_str += 'Divergence: ' + str(divergence) + '\n'
+#         diag_str += '--------------------------------------------\n'
+#         diagnostics_file = open(outfile_name, 'a+')
+#         diagnostics_file.write(diag_str)
+#         diagnostics_file.close()
+#     except:
+#         print("diagnostics error")
 
-    skip_list = [np.sum((ep[:, -4:-2] - ep[:, :2])**5, axis=1)>max_dist for ep in out]
-    divided_out = []
-    for i,ep in enumerate(out):
-        if np.sum(skip_list[i]) == 0:
-            divided_out += [ep]
+#------------------------------------------------------------------------------------------------------------------------------------
 
-        else: 
-            ep_lists = np.split(ep, np.argwhere(skip_list[i]).reshape(-1))
-            divided_out += ep_lists
 
-    divided_out = [ep[5:-5] for ep in divided_out]
+if task == 'real_B':
+    out = clean_data(out)
+    print("data cleaning worked")
+    # print(len(out))
 
-    length_threshold = 40
-    return list(filter(lambda x: len(x) > length_threshold, divided_out))
 
-out = clean_data(out)
+out = [torch.tensor(ep, dtype=dtype) for ep in out]
+
+
+
+
+
+val_size = int(len(out)*held_out)
+# val_size = len(out) - int(held_out)
+val_data = out[val_size:]
+val_data = val_data[:min(10, len(val_data))]
+out = out[:len(out)-val_size]
+
+print("\nTraining with " + str(len(out)) + ' trajectories')
 
 DATA = np.concatenate(out)
 
@@ -254,14 +221,16 @@ task_ofs = new_state_dim + action_dim
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, -4:] - DATA[:, :4]
 
+
 x_mean_arr = np.mean(x_data, axis=0)
 x_std_arr = np.std(x_data, axis=0)
 y_mean_arr = np.mean(y_data, axis=0)
 y_std_arr = np.std(y_data, axis=0)
 x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
 y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
-with open(save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
-    pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
+if SAVE:
+    with open(save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
+        pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
 
 
 x_data = torch.tensor(x_data, dtype=dtype)
@@ -279,112 +248,47 @@ if cuda:
     y_mean_arr = y_mean_arr.cuda()
     y_std_arr = y_std_arr.cuda()
     # 
-out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
 
+
+print('\n\n Beginning task: ')
+# print('\t' + outfile_name)
+# pdb.set_trace()
 
 if __name__ == "__main__":
     thresh = 10
-    print('beginning run')
+    norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
+    # if method:
+    #     traj_obj = util(task, norm, method)
+    trainer = Trainer(task, norm, model_save_path=model_save_path) 
+    # print('beginning run')
 
     np.random.shuffle(out)
     # val_data = out[int(len(out)*(1-held_out)):]
-    val_data = out[int(len(out)*.1):]
-    out = out[:int(len(out)*(1-held_out))]
-    j = 0
-    pretrain(model, x_data, y_data, opt)
-    # pad_seq = torch.nn.pad_sequence(out)
-    # pac_pad_seq = torch.nn.pack_padded_sequence(out)
-
-    for epoch in range(epochs):
-        print('Epoch: ' + str(epoch))
-        np.random.shuffle(out)
-        total_loss = 0
-        # pdb.set_trace()
-        total_completed = 0
-        total_distance = 0
-        switch = True
-        # if epoch < 20 and task != 'transferA2B': 
-        #     loss_type = 'stepwise'
-        #     thresh = None
-        # # elif epoch < 6: 
-        # #     loss_type = 'mix'
-        # #     thresh = 100
-        # else: 
-        #     if switch == True:
-        #         switch = False
-        #         opt = torch.optim.Adam(model.parameters(), lr=lr)
-        loss_type = 'softmax'
-        thresh = 150
-
-        accum = 8
-
-
-
-        for i, episode in enumerate(out):
-            j += 1
-            if i % 30 == 0:
-                print(i)
-            loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = thresh, loss_type=loss_type)
-
-
-            loss.backward()
-
-            if j % accum ==0: 
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
-                if task == 'transferA2B':
-                    if method in ['constrained_retrain', 'constrained_restart']:
-                        factor = .0000
-                        loss = offset_l2(model)*factor
-                        loss.backward()
-                    if method == 'linear_transform':
-                        factor = .0001
-                        # loss = model.get_consistency_loss(episode)*factor
-
-                    # loss.backward()
-
-                opt.step()
-
-                opt.zero_grad()
-
-        for i, episode in enumerate(val_data[:len(val_data)//2]):
-            _ , completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = 50)
-            total_completed += completed
-            total_distance += dist
-
-        for i, episode in enumerate(val_data[len(val_data)//2:]):
-            val_loss, completed, dist = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None)
-            total_loss += val_loss.data
-
-        # episode = random.choice(val_data)
-        # states = run_traj(model, episode, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold = None, return_states=True).cpu().detach().numpy()
-            
-        # eps = episode.cpu().detach().numpy()
-        # plt.figure(1)
-        # plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
-        # plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
-        # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-        # plt.axis('scaled')
-        # plt.title('Bayesian NN Prediction -- pos Space')
-        # plt.legend()
-        # plt.show()
-
-
-        thresh = 150
-        print('Loss: ' + str(total_loss/len(val_data)))
-        print('completed: ' + str(total_completed/len(val_data)))
-        print('Average time before divergence: ' + str(total_distance/len(val_data)))
-        with open(save_path+'/'+ task + '_' + nn_type + '.pkl', 'wb') as pickle_file:
-            torch.save(model, pickle_file)
-
-    if outfile: 
-        if append:
-            f = open(outfile, 'a+')
-        else:
-            f = open(outfile, 'w+')
-        out_string= ('cold start\t' + data_type +
-                    '\t' + task + '\t' + str(held_out) +
-                    '\t:' + str(final_loss) + '\n')
-        f.write(out_string)
-        f.close()
+    if held_out > .95: 
+        lr = .000065
+        lr = .0001
+        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=1)
+        # if method == 'nonlinear_transform':
+        #     model.set_base_model_train(True)
+        opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data=val_data, epochs=25, batch_size=64)
+    elif held_out > .9: 
+        lr = .0001
+        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=30)
+        # if method == 'nonlinear_transform':
+        #     model.set_base_model_train(True)
+        opt = torch.optim.Adam(model.parameters(), lr=.000025, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=25, batch_size=64)
+    else:
+        lr = .00005
+        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=100)
+        # if method == 'nonlinear_transform':
+        #     model.set_base_model_train(True)
+        opt = torch.optim.Adam(model.parameters(), lr=.00001, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=64)
+# diagnostics_file.close()
     
