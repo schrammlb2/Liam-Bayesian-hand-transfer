@@ -45,6 +45,9 @@ action_dim = 6
 alpha = .4
 lr = .0002
 new_lr = lr/2
+
+input_dim = state_dim + action_dim
+output_dim = state_dim*2
 # lr
 # lr = .01
 dropout_rate = .1
@@ -63,7 +66,7 @@ if task in ['real_A', 'real_B']:
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
-    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+    model = pt_build_model(nn_type, input_dim, output_dim, dropout_rate)
     if cuda: 
         model = model.cuda()
 
@@ -130,64 +133,23 @@ elif task in ['transferA2B', 'transferB2A']:
                 loss += torch.norm(base_parameters[i]-parameter)
 
             return loss
-        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+        model = pt_build_model(nn_type, input_dim, output_dim, dropout_rate)
 
     elif method == 'linear_transform':
-        model = LinearTransformedModel(model, state_dim + action_dim, state_dim)
+        model = LinearTransformedModel(model, input_dim, output_dim)
 
     elif method == 'nonlinear_transform':
-        model = NonlinearTransformedModel(model, state_dim + action_dim, state_dim)
+        model = NonlinearTransformedModel(model, input_dim, output_dim)
         # model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)        
 
     elif method == 'single_transform':
-        model = torch.nn.Sequential(*[model, torch.nn.Linear(state_dim , state_dim)])
+        model = torch.nn.Sequential(*[model, torch.nn.Linear(output_dim, output_dim)])
         for param in model[0].parameters():
             param.requires_grad = False
 
     else: 
         print("Invalid method type")
         assert False
-
-
-
-# outfile_name = task + '_diagnostics'
-# if 'transfer' in task:  
-#     outfile_name = task + '_' + method + '_'
-#     if method == 'constrained_restart':
-#         outfile_name += 'l2.'+str(l2_coeff)
-
-#     outfile_name += '_held_out.'+str(held_out)
-#     outfile_name+='_diagnostics'
-
-# diagnostics_file = open(outfile_name, 'w+')
-# diagnostics_file.write('\n')
-# diagnostics_file.close()
-
-
-# def diagnostics(model, train_type = None, epoch=None, loss=None, divergence=None, grad_norms= None):
-#     try:
-#         wn = weight_norm(model)
-#         if grad_norms:
-#             gn = sum(grad_norms)/len(grad_norms)
-#         else:
-#             gn = grad_norm(model)
-#         diag_str = ''
-#         if train_type:
-#             diag_str += train_type + ' epoch ' + str(epoch) + '\n'
-#         diag_str += 'Weight norm: ' + str(wn) + '\n'
-#         diag_str += 'Grad norm: ' + str(gn) + '\n'
-#         if loss: 
-#             diag_str += 'Loss: ' + str(loss) + '\n'
-#         if divergence: 
-#             diag_str += 'Divergence: ' + str(divergence) + '\n'
-#         diag_str += '--------------------------------------------\n'
-#         diagnostics_file = open(outfile_name, 'a+')
-#         diagnostics_file.write(diag_str)
-#         diagnostics_file.close()
-#     except:
-#         print("diagnostics error")
-
-#------------------------------------------------------------------------------------------------------------------------------------
 
 
 if task == 'real_B':
@@ -240,55 +202,31 @@ x_mean_arr = torch.tensor(x_mean_arr, dtype=dtype)
 x_std_arr = torch.tensor(x_std_arr, dtype=dtype)
 y_mean_arr = torch.tensor(y_mean_arr, dtype=dtype)
 y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
-# out = [z_score_normalize]
 
 if cuda:
     x_mean_arr = x_mean_arr.cuda()
     x_std_arr = x_std_arr.cuda()
     y_mean_arr = y_mean_arr.cuda()
     y_std_arr = y_std_arr.cuda()
-    # 
 
 
 
-print('\n\n Beginning task: ')
-# print('\t' + outfile_name)
+print('\n\n Beginning task: ' + model_save_path)
 # pdb.set_trace()
+
 
 if __name__ == "__main__":
     thresh = 10
+    model = BNNWrapper(model, input_dim, state_dim)
     norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
-    # if method:
-    #     traj_obj = util(task, norm, method)
-    trainer = Trainer(task, norm, model_save_path=model_save_path) 
-    # print('beginning run')
+    trainer = BayesianTrainer(task, norm, model_save_path=model_save_path) 
 
     np.random.shuffle(out)
-    # val_data = out[int(len(out)*(1-held_out)):]
-    if held_out > .95: 
-        lr = .000065
-        lr = .0001
-        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=5)
-        # if method == 'nonlinear_transform':
-        #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data=val_data, epochs=25, batch_size=64)
-    elif held_out > .9: 
-        lr = .0001
-        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=30)
-        # if method == 'nonlinear_transform':
-        #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.000025, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=25, batch_size=64)
-    else:
-        lr = .00005
-        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=100)
-        # if method == 'nonlinear_transform':
-        #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.00001, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=64)
-# diagnostics_file.close()
-    
+
+    lr = .00005
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+    # trainer.pretrain(model, x_data, y_data, opt, epochs=10)
+    # if method == 'nonlinear_transform':
+    #     model.set_base_model_train(True)
+    opt = torch.optim.Adam(model.parameters(), lr=.00001, weight_decay=.001)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=64)

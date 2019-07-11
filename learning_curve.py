@@ -93,7 +93,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
         state_delta = model(inpt)
-        # if task in ['transferA2B', 'transferB2A']: 
+        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)

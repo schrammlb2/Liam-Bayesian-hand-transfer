@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import pdb
 import numpy as np
 
@@ -46,7 +47,7 @@ class LinearTransformedModel(torch.nn.Module):
         return mse_fn(detrans_state, inpt[:self.output_dim])
 
 class NonlinearTransformedModel(torch.nn.Module):
-    def __init__(self, old_model, input_dim, output_dim):
+    def __init__(self, old_model, input_dim, output_dim, state_dim=4):
         super(NonlinearTransformedModel, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -57,6 +58,7 @@ class NonlinearTransformedModel(torch.nn.Module):
 
         self.transform_model = torch.nn.Sequential(
               # torch.nn.Linear(input_dim, 128),
+              # torch.nn.Linear(input_dim+state_dim, 128),
               torch.nn.Linear(input_dim+output_dim, 128),
               torch.nn.SELU(),
               torch.nn.AlphaDropout(.1),
@@ -83,12 +85,9 @@ class NonlinearTransformedModel(torch.nn.Module):
         self.iden = torch.autograd.Variable(torch.tensor(self.rotation_matrix, dtype = dtype))
             # Initialize transform as identity matrix
     def forward(self, inpt):
-        # return self.lt(self.model(self.lt_inv(inpt)))
-
-        # pdb.set_trace()
-
         out = self.model(inpt)#.detach()
         new_inpt = torch.cat((inpt, out), dim=-1)
+        # pdb.set_trace()
         feats = self.transform_model(new_inpt)
         # feats = self.transform_model(inpt)
         # 
@@ -99,11 +98,12 @@ class NonlinearTransformedModel(torch.nn.Module):
         gradient_decay = .1
 
         if skip:
-            D1 = D*(1-gradient_decay)
-            D2 = (D*gradient_decay).detach()
-            D_new = D1+D2
+            D1 = D#*(1-gradient_decay)
+            #D2 = (D*gradient_decay).detach()
+            D_new = D1#+D2
         	# transformed_out = D
             # transformed_out = (1-alpha)*out + D*alpha
+            pdb.set_trace()
             transformed_out = (1-alpha)*out + D_new*alpha
         else:
             A = self.A_model(feats)*.05
@@ -136,7 +136,7 @@ class NonlinearTransformedModel(torch.nn.Module):
         for param in self.model.parameters():
             param.requires_grad = setting
 
-def pt_build_model(nn_type, input_dim, output_dim, dropout_p):
+def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
 	if nn_type == '0':
 		model = torch.nn.Sequential(
 		      torch.nn.Linear(input_dim, 128),
@@ -174,3 +174,37 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p):
 
 	# pdb.set_trace()
 	return model
+
+
+class BNNWrapper(torch.nn.Module):
+    def __init__(self, model, input_dim, output_dim):
+        super(BNNWrapper, self).__init__()
+        self.model = model
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+    def get_distro(self,x):
+        # pdb.set_trace()
+        output = self.model(x)
+        means = output[...,: self.output_dim]
+        stds = F.elu(output[..., self.output_dim:]) + 1
+            #Make sure Standard Deviation > 0
+        # pdb.set_trace()
+        distro = torch.distributions.normal.Normal(means, stds)
+        return distro
+
+    def forward(self,x, true_state=None):
+        distro = self.get_distro(x)
+        sample = distro.sample()
+        if true_state is not None: 
+            log_p = distro.log_prob(true_state)
+            pdb.set_trace()
+            return sample, log_p
+
+        return sample
+        # return distro.mean
+
+
+
+
+
