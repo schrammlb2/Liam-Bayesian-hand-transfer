@@ -81,49 +81,39 @@ if __name__ == "__main__":
 
 
 
+    states = []
+
     BATCH = True
     # BATCH = False
     if BATCH:
         batch_size = 4
         out=[make_traj(trajectory, i) for i in range(batch_size)]
-        # pdb.set_trace()
+
         lengths = [len(traj) for traj in out]
         min_length = min(lengths)
         batches = [traj[0:min_length] for traj in out]
         traj = np.stack(batches,0)
 
-
-        # batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
-        # episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
-        # min_lengths = [min(episode_length) for episode_length in episode_lengths]
-        # rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
-        # rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
-        # batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
-
-        # batches = [np.stack(batch, 0) for batch in batch_slices]      
-
-        # traj = np.concatenate(batches,0)
         true_states = traj[:,:,:state_dim]
         state = traj[:,0,:state_dim]
+
+        actions = traj[..., state_dim:state_dim+action_dim]
+
+
+        for i in range(traj.shape[1]):
+            states.append(state)
+            action = actions[:,i]
+            sa = np.concatenate((state, action), -1)
+            state = NN.predict(sa)
+        states = np.stack(states, 1)
+
 
     else:
         traj = make_traj(trajectory, test_traj)
         true_states = traj[:,:state_dim]
         state = traj[0][:state_dim]
     
-    states = []
 
-    if BATCH:
-        for i in range(traj.shape[1]):
-            point = traj[:,i]
-            states.append(state)
-            action = point[..., state_dim:state_dim+action_dim]
-            # if cuda: action = action.cuda() 
-            sa = np.concatenate((state, action), -1)
-            state = NN.predict(sa)
-        states = np.stack(states, 1)
-
-    else: 
         for i, point in enumerate(traj):
             states.append(state)
             action = point[state_dim:state_dim+action_dim]
