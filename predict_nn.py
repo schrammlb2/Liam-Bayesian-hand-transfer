@@ -50,104 +50,104 @@ class predict_nn:
 
 
 
-if __name__ == "__main__":
-    task = 'real_A' 
-    held_out = .1
-    test_traj = 3
-    # _ , arg1, arg2, arg3 = argv
-    nn_type = '1'
-    method = ''
-    save_path = 'save_model/robotic_hand_real/pytorch/'
+# if __name__ == "__main__":
+#     task = 'real_A' 
+#     held_out = .1
+#     test_traj = 3
+#     # _ , arg1, arg2, arg3 = argv
+#     nn_type = '1'
+#     method = ''
+#     save_path = 'save_model/robotic_hand_real/pytorch/'
 
-    trajectory_path_map = {
-        'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
-        'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
-        'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
-        'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
-        }
-    trajectory_path = trajectory_path_map[task]
+#     trajectory_path_map = {
+#         'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
+#         'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
+#         'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
+#         'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
+#         }
+#     trajectory_path = trajectory_path_map[task]
 
-    with open(trajectory_path, 'rb') as pickle_file:
-        trajectory = pickle.load(pickle_file, encoding='latin1')
+#     with open(trajectory_path, 'rb') as pickle_file:
+#         trajectory = pickle.load(pickle_file, encoding='latin1')
 
-    def make_traj(trajectory, test_traj):
-        real_positions = trajectory[0][test_traj]
-        acts = trajectory[1][test_traj]    
-        return np.append(real_positions, acts, axis=1)
+#     def make_traj(trajectory, test_traj):
+#         real_positions = trajectory[0][test_traj]
+#         acts = trajectory[1][test_traj]    
+#         return np.append(real_positions, acts, axis=1)
 
-    NN = predict_nn()
-    state_dim = 4
-    action_dim = 6
-
-
-
-    BATCH = True
-    # BATCH = False
-    if BATCH:
-        batch_size = 4
-        out=[make_traj(trajectory, i) for i in range(batch_size)]
+#     NN = predict_nn()
+#     state_dim = 4
+#     action_dim = 6
 
 
-        batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
-        episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
-        min_lengths = [min(episode_length) for episode_length in episode_lengths]
-        rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
-        rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
-        batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
 
-        batches = [np.stack(batch, 0) for batch in batch_slices]      
+#     BATCH = True
+#     # BATCH = False
+#     if BATCH:
+#         batch_size = 4
+#         out=[make_traj(trajectory, i) for i in range(batch_size)]
 
-        traj = np.concatenate(batches,0)
-        true_states = traj[:,:,:state_dim]
-        state = traj[:,0,:state_dim]
 
-    else:
-        traj = make_traj(trajectory, test_traj)
-        true_states = traj[:,:state_dim]
-        state = traj[0][:state_dim]
+#         batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
+#         episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
+#         min_lengths = [min(episode_length) for episode_length in episode_lengths]
+#         rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
+#         rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
+#         batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
+
+#         batches = [np.stack(batch, 0) for batch in batch_slices]      
+
+#         traj = np.concatenate(batches,0)
+#         true_states = traj[:,:,:state_dim]
+#         state = traj[:,0,:state_dim]
+
+#     else:
+#         traj = make_traj(trajectory, test_traj)
+#         true_states = traj[:,:state_dim]
+#         state = traj[0][:state_dim]
     
-    states = []
+#     states = []
 
-    if BATCH:
-        for i in range(traj.shape[1]):
-            point = traj[:,i]
-            states.append(state)
-            action = point[..., state_dim:state_dim+action_dim]
-            # if cuda: action = action.cuda() 
-            sa = np.concatenate((state, action), -1)
-            state = NN.predict(sa)
-        states = np.stack(states, 1)
+#     if BATCH:
+#         for i in range(traj.shape[1]):
+#             point = traj[:,i]
+#             states.append(state)
+#             action = point[..., state_dim:state_dim+action_dim]
+#             # if cuda: action = action.cuda() 
+#             sa = np.concatenate((state, action), -1)
+#             state = NN.predict(sa)
+#         states = np.stack(states, 1)
 
-    else: 
-        for i, point in enumerate(traj):
-            states.append(state)
-            action = point[state_dim:state_dim+action_dim]
-            # if cuda: action = action.cuda() 
-            # pdb.set_trace()
-            sa = np.concatenate((state, action), 0)
-            state = NN.predict(sa)
-        states = np.stack(states, 0)
-
-
-
-    if BATCH:
-        plt.figure(1)
-        plt.scatter(traj[test_traj, 0, 0], traj[test_traj, 0, 1], marker="*", label='start')
-        plt.plot(traj[test_traj, :, 0], traj[test_traj, :, 1], color='blue', label='Ground Truth', marker='.')
-        plt.plot(states[test_traj, :, 0], states[test_traj, :, 1], color='red', label='NN Prediction')
-        plt.axis('scaled')
-        plt.title('Bayesian NN Prediction -- pos Space')
-        plt.legend()
-        plt.show()
+#     else: 
+#         for i, point in enumerate(traj):
+#             states.append(state)
+#             action = point[state_dim:state_dim+action_dim]
+#             # if cuda: action = action.cuda() 
+#             # pdb.set_trace()
+#             sa = np.concatenate((state, action), 0)
+#             state = NN.predict(sa)
+#         states = np.stack(states, 0)
 
 
-    else:
-        plt.figure(1)
-        plt.scatter(traj[0, 0], traj[0, 1], marker="*", label='start')
-        plt.plot(traj[:, 0], traj[:, 1], color='blue', label='Ground Truth', marker='.')
-        plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-        plt.axis('scaled')
-        plt.title('Bayesian NN Prediction -- pos Space')
-        plt.legend()
-        plt.show()
+
+#     if BATCH:
+#         plt.figure(1)
+#         plt.scatter(traj[test_traj, 0, 0], traj[test_traj, 0, 1], marker="*", label='start')
+#         plt.plot(traj[test_traj, :, 0], traj[test_traj, :, 1], color='blue', label='Ground Truth', marker='.')
+#         plt.plot(states[test_traj, :, 0], states[test_traj, :, 1], color='red', label='NN Prediction')
+#         plt.axis('scaled')
+#         plt.title('Bayesian NN Prediction -- pos Space')
+#         plt.legend()
+#         plt.show()
+
+
+#     else:
+#         plt.figure(1)
+#         plt.scatter(traj[0, 0], traj[0, 1], marker="*", label='start')
+#         plt.plot(traj[:, 0], traj[:, 1], color='blue', label='Ground Truth', marker='.')
+#         plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+#         plt.axis('scaled')
+#         plt.title('Bayesian NN Prediction -- pos Space')
+#         plt.legend()
+#         plt.show()
 
