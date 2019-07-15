@@ -15,14 +15,14 @@ import matplotlib.pyplot as plt
 from sys import argv
 
 data_type = 'pos' #type of data used for this task
-task = 'real_A' #Which task we're training. This tells us what file to use
+task = 'sim_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
 held_out = .1
 # _ , arg1, arg2, arg3 = argv
 epochs = 250
 nn_type = '1'
-SAVE = False
+SAVE = True
 method = None
 
 # pdb.set_trace()
@@ -36,12 +36,13 @@ if len(argv) > 4 and argv[4] != '_':
     nn_type = argv[4]
 
 assert data_type in ['pos', 'load']
-assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
+assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B']
 
 
 
 state_dim = 4
-action_dim = 6
+action_dim = 2 if (task == 'sim_A' or task == 'sim_B') else 6
+# action_dim = 6
 alpha = .4
 lr = .0002
 new_lr = lr/2
@@ -53,13 +54,17 @@ dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
-if task in ['real_A', 'real_B']:
+if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
         datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
     elif task == 'real_B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
+    elif task == 'sim_A':
+        datafile_name = 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
+    elif task == 'sim_B':
+        datafile_name = 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj'
 
-    save_path = 'save_model/robotic_hand_real/pytorch'
+    save_path = 'save_model/robotic_hand_simulator/pytorch' if (task == 'sim_A' or task == 'sim_B') else 'save_model/robotic_hand_real/pytorch'
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
@@ -195,11 +200,19 @@ if task == 'real_B':
     print("data cleaning worked")
     # print(len(out))
 
+new_state_dim = 4
+
+data_type_offset = {'ave_load':4, 'load':2, 'pos':0}
+dt_ofs = data_type_offset[data_type]
+task_ofs = new_state_dim + action_dim
+
+length_threshold = 30
+out = list(filter(lambda x: len(x) > length_threshold, out))
+
 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
-
-
+# pdb.set_trace()
 
 
 val_size = int(len(out)*held_out)
@@ -208,15 +221,13 @@ val_data = out[val_size:]
 val_data = val_data[:min(10, len(val_data))]
 out = out[:len(out)-val_size]
 
+
 print("\nTraining with " + str(len(out)) + ' trajectories')
+
 
 DATA = np.concatenate(out)
 
-new_state_dim = 4
 
-data_type_offset = {'ave_load':4, 'load':2, 'pos':0}
-dt_ofs = data_type_offset[data_type]
-task_ofs = new_state_dim + action_dim
 
 x_data = DATA[:, :task_ofs]
 y_data = DATA[:, -4:] - DATA[:, :4]
@@ -251,6 +262,7 @@ if cuda:
 
 
 
+
 print('\n\n Beginning task: ')
 # print('\t' + outfile_name)
 # pdb.set_trace()
@@ -260,7 +272,7 @@ if __name__ == "__main__":
     norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
     # if method:
     #     traj_obj = util(task, norm, method)
-    trainer = Trainer(task, norm, model_save_path=model_save_path) 
+    trainer = Trainer(task, norm, model_save_path=model_save_path, state_dim=state_dim, action_dim=action_dim) 
     # print('beginning run')
 
     np.random.shuffle(out)
@@ -283,12 +295,12 @@ if __name__ == "__main__":
         opt = torch.optim.Adam(model.parameters(), lr=.000025, weight_decay=.001)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=25, batch_size=64)
     else:
-        lr = .00005
+        lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=100)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=10)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.00001, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=64)
+        opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=100, batch_size=64)
 # diagnostics_file.close()
     

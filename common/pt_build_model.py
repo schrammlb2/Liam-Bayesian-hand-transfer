@@ -136,6 +136,15 @@ class NonlinearTransformedModel(torch.nn.Module):
         for param in self.model.parameters():
             param.requires_grad = setting
 
+
+# class RecurrentNet(torch.nn.Module):
+#     def __init__(input_dim, output_dim, dropout_p=.1):
+#         self.l1 = torch.nn.Linear(input_dim, 128)
+#         self.l2 = torch.nn.LSTM(128, 128, batch_first=True, dropout=dropout_p)
+
+
+
+
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
 	if nn_type == '0':
 		model = torch.nn.Sequential(
@@ -170,6 +179,8 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
 		      torch.nn.AlphaDropout(dropout_p),
 		      torch.nn.Linear(32, output_dim),
 		)
+    # elif nn_type == 'LSTM':
+    #     model = torch.nn.LSTM(input_dim, output_dim, num_layers=3, dropout=dropout_p)
 
 
 	# pdb.set_trace()
@@ -195,14 +206,23 @@ class BNNWrapper(torch.nn.Module):
 
     def forward(self,x, true_state=None):
         distro = self.get_distro(x)
-        sample = distro.sample()
+        # sample = distro.sample()
+        sample = distro.mean
+        # interp = .9
+        # sample = distro.mean*interp+ distro.sample()*(1-interp)
         if true_state is not None: 
             log_p = distro.log_prob(true_state)
-            pdb.set_trace()
+            nan_locs = (log_p != log_p) #Get locations where log_p is undefined
+            if nan_locs.any():
+                pdb.set_trace()
+            log_p[nan_locs] = 0 #Set the loss in those locations to 0
             return sample, log_p
 
         return sample
         # return distro.mean
+
+
+
 
 
 

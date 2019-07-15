@@ -55,9 +55,9 @@ def clean_data(out):
 
 
 class Trainer():
-    def __init__(self, task, norm, method=None, save=True, model_save_path=None):
-        self.state_dim = 4
-        self.action_dim = 6
+    def __init__(self, task, norm, method=None, save=True, model_save_path=None, state_dim = 4, action_dim = 6):
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.task = task
         self.norm = norm
         self.method = method
@@ -75,7 +75,7 @@ class Trainer():
                 opt.zero_grad()
                 # pdb.set_trace()
                 out = model(sample[0])
-                if task in ['transferA2B', 'transferB2A']: 
+                if self.task in ['transferA2B', 'transferB2A']: 
                     out *= torch.tensor([-1,-1,1,1], dtype=dtype)
 
                 if train_load:
@@ -224,7 +224,6 @@ class Trainer():
         mse_fn = torch.nn.MSELoss()
 
         def softmax(states):
-            # pdb.set_trace()
             mse_fn = torch.nn.MSELoss(reduction='none')
             # mse_fn = torch.nn.MSELoss()
             msepos = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
@@ -280,6 +279,7 @@ class Trainer():
             inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
             state_delta = model(inpt)
+
             state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
             if self.task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
             sim_deltas.append(state_delta)
@@ -324,8 +324,9 @@ class Trainer():
             total_distance = 0
             switch = True
             # loss_type = 'stepwise'
-            loss_type = 'asdfsdf'
-            # loss_type = 'mix'
+            # loss_type = 'asdfsdf'
+            loss_type = 'mix'
+            # loss_type = 'softmax'
             thresh = 150
 
 
@@ -475,8 +476,6 @@ class BayesianTrainer:
                 opt.zero_grad()
                 out, log_p = model(sample[0], sample[1])
 
-
-
                 loss = -torch.sum(log_p[...,:self.state_dim])
 
                 # pdb.set_trace()
@@ -504,7 +503,6 @@ class BayesianTrainer:
 
         loss = 0
 
-
         for i in range(batch.shape[1]):
             states.append(state)
             action = batch[:,i,self.state_dim:self.state_dim+self.action_dim]
@@ -519,7 +517,10 @@ class BayesianTrainer:
             # pdb.set_trace()
 
             state_delta, log_p = model(inpt, residual)
-            loss += -log_p[...,:self.state_dim]/(i*batch.shape[1])
+            # l = -log_p[...,:self.state_dim]/((i+1)*batch.shape[1])
+            l = -log_p[...,:2]/((i+1)*batch.shape[1])
+            # pdb.set_trace()
+            loss += l
 
             state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
             if self.task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
@@ -548,6 +549,8 @@ class BayesianTrainer:
             true_states = true_states.cuda()
 
         mse_fn = torch.nn.MSELoss()
+
+        hidden
 
         def softmax(states):
             mse_fn = torch.nn.MSELoss(reduction='none')
@@ -604,8 +607,8 @@ class BayesianTrainer:
             total_distance = 0
             switch = True
             # loss_type = 'stepwise'
-            loss_type = 'asdfsdf'
-            # loss_type = 'mix'
+            # loss_type = 'asdfsdf'
+            loss_type = 'mix'
             thresh = 150
 
 
@@ -634,10 +637,9 @@ class BayesianTrainer:
 
                 loss.backward()
                 if accum == 0 or j % accum ==0: 
-                    if self.task == 'transferA2B':
-                        if method in ['constrained_retrain', 'constrained_restart']:
-                            loss = offset_l2(model)*l2_coeff*accum
-                            loss.backward()
+                    if self.task == 'transferA2B' and method in ['constrained_retrain', 'constrained_restart']:
+                        loss = offset_l2(model)*l2_coeff*accum
+                        loss.backward()
 
                     grad_norms.append(grad_norm(model))
 

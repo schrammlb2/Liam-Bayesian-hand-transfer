@@ -25,12 +25,12 @@ if len(argv) > 1 and argv[1] != '_':
 if len(argv) > 2 and argv[2] != '_':
     task = argv[2]
 if len(argv) > 3 and argv[3] != '_':
-    nn_type = argv[3]
+    held_out = float(argv[3])
 if len(argv) > 4 and argv[4] != '_' and 'transfer' in task:
     method = 'retrain'
     method = argv[4]
 
-assert task in ['real_A', 'real_B','transferA2B','transferB2A']
+# assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 
 
 
@@ -46,7 +46,7 @@ trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test
     'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
-    # 'sim_s1': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
+    'sim_A': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
     # 'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
     }
 trajectory_path = trajectory_path_map[task]
@@ -74,7 +74,15 @@ def make_traj(trajectory, test_traj):
         real_positions = trajectory[0][test_traj][start:]
         acts = trajectory[1][test_traj][start:]
     
-    return np.append(real_positions, acts, axis=1)
+
+    return np.append(real_positions[:len(acts)], acts, axis=1)
+
+def make_traj_sim(trajectory):
+    real_positions = trajectory[0][...,:4]
+    acts = trajectory[1]
+    
+    return np.append(real_positions[:len(acts)], acts, axis=1)
+
 
 
 if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
@@ -105,13 +113,42 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     states = torch.stack(states, 0)
     return states
 
+def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
+    true_states = traj[:,:state_dim]
+    state = traj[0][:state_dim]
+    states = []#state.view(1, state_dim)
+    display_state = state
 
+    for i, point in enumerate(traj):
+        states.append(state)
+        action = point[state_dim:state_dim+action_dim]
+        # if cuda: action = action.cuda()    
+        inpt = torch.cat((state, action), 0)
+        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+
+        state_delta = model(inpt)
+        # pdb.set_trace()
+        # drift = 1
+        # state_delta = state_delta*(1-drift) + display_state_delta*drift
+
+        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        
+        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        state= state_delta + state
+        #May need random component here to prevent overfitting
+        # states = torch.cat((states,state.view(1, state_dim)), 0)
+                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+    states = torch.stack(states, 0)
+    return states
 
 # model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
 model_file = save_path+task + '_' + nn_type + '.pkl'
 
-if task == 'real_A': model_file = save_path+task + '_heldout' + str(.7) +  '_'+ nn_type + '.pkl'
-if task == 'transferB2A': model_file = save_path+task + '_nonlinear_transform_heldout' + str(.995) +  '_'+ nn_type + '.pkl'
+if len(argv) > 3 and argv[3] != '_': 
+    if 'real' in task: model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
+    if task == 'transferB2A': model_file = save_path+task + '_nonlinear_transform_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
+
 if method != '': 
     model_file = save_path+task + '_' + method + '_' + nn_type + '.pkl'
     if method == 'constrained_restart':
@@ -120,6 +157,9 @@ if method != '':
             model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
         else:
             model_file = save_path+task + '_'  + nn_type + '.pkl'
+
+# model_file = model_file[:-4] + '_bayesian.pkl'
+model_file = 'save_model/robotic_hand_simulator/pytorch/sim_A_heldout' + str(held_out) + '_1.pkl'
 
 
 with open(model_file, 'rb') as pickle_file:
@@ -151,7 +191,10 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 max_mses = []
 mses = []
 for test_traj in range(4):
-    ground_truth = make_traj(trajectory, test_traj)
+    if task == 'sim_A':
+        ground_truth = make_traj_sim(trajectory)
+    else:
+        ground_truth = make_traj(trajectory, test_traj)
 
     states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 

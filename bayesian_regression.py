@@ -21,7 +21,8 @@ append = False
 held_out = .1
 # _ , arg1, arg2, arg3 = argv
 epochs = 250
-nn_type = '1'
+# nn_type = '1'
+nn_type = 'LSTM'
 SAVE = False
 method = None
 
@@ -59,10 +60,20 @@ print('cuda is_available: '+ str(cuda))
 if task in ['real_A', 'real_B']:
     if task == 'real_A':
         datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
+        save_path = 'save_model/robotic_hand_real/pytorch'
     elif task == 'real_B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
+        save_path = 'save_model/robotic_hand_real/pytorch'
+    elif task == 'sim_A':
+        datafile_name = '../data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
+        save_path = '../save_model/robotic_hand_simulator/pytorch'
+    elif task == 'sim_B':
+        datafile_name = '../data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj'
+        save_path = '../save_model/robotic_hand_simulator/pytorch'
 
-    save_path = 'save_model/robotic_hand_real/pytorch'
+
+
+    # save_path = 'save_model/robotic_hand_real/pytorch'
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
@@ -70,7 +81,7 @@ if task in ['real_A', 'real_B']:
     if cuda: 
         model = model.cuda()
 
-    model_save_path = save_path+'/'+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+    model_save_path = save_path+'/'+ task + '_heldout' + str(held_out)+ '_' + nn_type
 
 
 
@@ -89,22 +100,22 @@ elif task in ['transferA2B', 'transferB2A']:
     if task == 'transferA2B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
         save_path = 'save_model/robotic_hand_real/pytorch'
-        save_file = save_path+'/real_A'+ '_' + nn_type + '.pkl'
+        save_file = save_path+'/real_A'+ '_' + nn_type
     if task == 'transferB2A':
         datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
         save_path = 'save_model/robotic_hand_real/pytorch'
-        save_file = save_path+'/real_B'+ '_' + nn_type + '.pkl'
+        save_file = save_path+'/real_B'+ '_' + nn_type
 
 
 
-    model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+    model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type
 
 
     if method in ['constrained_retrain', 'constrained_restart']:
         l2_coeff = .001
         if len(argv) > 6:
             l2_coeff = float(argv[6])
-            model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + str(l2_coeff) + '_' + nn_type + '.pkl'
+            model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + str(l2_coeff) + '_' + nn_type
 
 
     with open(datafile_name, 'rb') as pickle_file:
@@ -161,7 +172,7 @@ if task == 'real_B':
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
 
-
+model_save_path += '_bayesian.pkl'
 
 
 val_size = int(len(out)*held_out)
@@ -225,8 +236,8 @@ if __name__ == "__main__":
 
     lr = .00005
     opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-    # trainer.pretrain(model, x_data, y_data, opt, epochs=10)
+    trainer.pretrain(model, x_data, y_data, opt, epochs=5)
     # if method == 'nonlinear_transform':
     #     model.set_base_model_train(True)
-    opt = torch.optim.Adam(model.parameters(), lr=.00001, weight_decay=.001)
-    trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=64)
+    opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=100, batch_size=128)
