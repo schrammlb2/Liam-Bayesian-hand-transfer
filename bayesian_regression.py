@@ -21,8 +21,8 @@ append = False
 held_out = .1
 # _ , arg1, arg2, arg3 = argv
 epochs = 250
-# nn_type = '1'
-nn_type = 'LSTM'
+nn_type = '1'
+# nn_type = 'LSTM'
 SAVE = False
 method = None
 
@@ -37,12 +37,11 @@ if len(argv) > 4 and argv[4] != '_':
     nn_type = argv[4]
 
 assert data_type in ['pos', 'load']
-assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']
 
 
 
 state_dim = 4
-action_dim = 6
+action_dim = 2 if (task == 'sim_A' or task == 'sim_B') else 6
 alpha = .4
 lr = .0002
 new_lr = lr/2
@@ -57,7 +56,7 @@ dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
-if task in ['real_A', 'real_B']:
+if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
         datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
         save_path = 'save_model/robotic_hand_real/pytorch'
@@ -65,11 +64,11 @@ if task in ['real_A', 'real_B']:
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
         save_path = 'save_model/robotic_hand_real/pytorch'
     elif task == 'sim_A':
-        datafile_name = '../data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
-        save_path = '../save_model/robotic_hand_simulator/pytorch'
+        datafile_name = 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
+        save_path = 'save_model/robotic_hand_simulator/pytorch'
     elif task == 'sim_B':
-        datafile_name = '../data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj'
-        save_path = '../save_model/robotic_hand_simulator/pytorch'
+        datafile_name = 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj'
+        save_path = 'save_model/robotic_hand_simulator/pytorch'
 
 
 
@@ -175,6 +174,16 @@ out = [torch.tensor(ep, dtype=dtype) for ep in out]
 model_save_path += '_bayesian.pkl'
 
 
+new_state_dim = 4
+
+data_type_offset = {'ave_load':4, 'load':2, 'pos':0}
+dt_ofs = data_type_offset[data_type]
+task_ofs = new_state_dim + action_dim
+
+length_threshold = 30
+out = list(filter(lambda x: len(x) > length_threshold, out))
+
+
 val_size = int(len(out)*held_out)
 # val_size = len(out) - int(held_out)
 val_data = out[val_size:]
@@ -229,14 +238,16 @@ print('\n\n Beginning task: ' + model_save_path)
 if __name__ == "__main__":
     thresh = 10
     model = BNNWrapper(model, input_dim, state_dim)
+    if cuda: 
+        model = model.cuda()
     norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
     trainer = BayesianTrainer(task, norm, model_save_path=model_save_path) 
 
     np.random.shuffle(out)
 
-    lr = .00005
+    lr = .000025
     opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-    trainer.pretrain(model, x_data, y_data, opt, epochs=5)
+    trainer.pretrain(model, x_data, y_data, opt, epochs=20, batch_size=256)
     # if method == 'nonlinear_transform':
     #     model.set_base_model_train(True)
     opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)

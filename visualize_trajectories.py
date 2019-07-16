@@ -38,19 +38,26 @@ dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
-if task in ['real_A', 'real_B']:
+if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
         datafile_name = 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
     elif task == 'real_B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
+    elif task == 'sim_A':
+        datafile_name = 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
+    elif task == 'sim_B':
+        datafile_name = 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj'
 
-    save_path = 'save_model/robotic_hand_real/pytorch'
+    save_path = 'save_model/robotic_hand_simulator/pytorch' if (task == 'sim_A' or task == 'sim_B') else 'save_model/robotic_hand_real/pytorch'
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
     model = pt_build_model(nn_type, state_dim+action_dim, state_dim, .1)
     if cuda: 
         model = model.cuda()
+
+    model_save_path = save_path+'/'+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+
 
 
 elif task in ['transferA2B', 'transferB2A']:
@@ -291,6 +298,8 @@ if __name__ == "__main__":
         plt.figure(1)
         plt.scatter(eps[0, 0], eps[0, 1], marker="*", label='start')
         plt.plot(eps[:, 0], eps[:, 1], color='blue', label='Ground Truth', marker='.')
+        # plt.scatter(eps[0, 2], eps[0, 3], marker="*", label='start')
+        # plt.plot(eps[:, 2], eps[:, 3], color='blue', label='Ground Truth', marker='.')
         # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
         plt.axis('scaled')
         plt.title('Bayesian NN Prediction -- pos Space')

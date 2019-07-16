@@ -193,6 +193,7 @@ class BNNWrapper(torch.nn.Module):
         self.model = model
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.interp = torch.autograd.Variable(torch.tensor(0.0), requires_grad=True)
 
     def get_distro(self,x):
         # pdb.set_trace()
@@ -206,17 +207,19 @@ class BNNWrapper(torch.nn.Module):
 
     def forward(self,x, true_state=None):
         distro = self.get_distro(x)
-        # sample = distro.sample()
-        sample = distro.mean
-        # interp = .9
+        # sample = distro.mean
+        # interp = F.sigmoid(self.interp)
         # sample = distro.mean*interp+ distro.sample()*(1-interp)
         if true_state is not None: 
+            sample = distro.mean
             log_p = distro.log_prob(true_state)
             nan_locs = (log_p != log_p) #Get locations where log_p is undefined
             if nan_locs.any():
                 pdb.set_trace()
             log_p[nan_locs] = 0 #Set the loss in those locations to 0
             return sample, log_p
+            
+        sample = distro.sample()
 
         return sample
         # return distro.mean

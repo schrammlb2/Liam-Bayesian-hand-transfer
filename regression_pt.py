@@ -53,6 +53,7 @@ dropout_rate = .1
 dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
+cuda = False
 
 if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
@@ -297,10 +298,14 @@ if __name__ == "__main__":
     else:
         lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=10)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=7, train_load=True)#, batch_size=256)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=100, batch_size=64)
+        opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
+        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4)
+        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
+        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=1)
 # diagnostics_file.close()
     

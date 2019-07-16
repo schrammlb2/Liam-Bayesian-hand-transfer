@@ -19,7 +19,7 @@ class predict_nn:
         self.model_path = save_path + model_name
 
         print('[predict_nn] Loading training data...')
-        with open(save_path+'/normalization_arr/normalization_arr_py2', 'rb') as pickle_file:
+        with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
             x_norm_arr, y_norm_arr = pickle.load(pickle_file)
 
         self.x_mean_arr, self.x_std_arr = x_norm_arr[0], x_norm_arr[1]
@@ -66,15 +66,10 @@ if __name__ == "__main__":
         'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
         'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
         }
-    # trajectory_path = trajectory_path_map[task]
-    trajectory_path = 'data/robotic_hand_real/A/testpaths_py2.pkl'
+    trajectory_path = trajectory_path_map[task]
 
     with open(trajectory_path, 'rb') as pickle_file:
-        trajectory = pickle.load(pickle_file)#, encoding='latin1')
-
-        # u = pickle._Unpickler(pickle_file)
-        # u.encoding = 'latin1'
-        # trajectory = u.load()
+        trajectory = pickle.load(pickle_file, encoding='latin1')
 
     def make_traj(trajectory, test_traj):
         real_positions = trajectory[0][test_traj]

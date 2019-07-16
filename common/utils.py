@@ -8,6 +8,7 @@ import random
 
 
 cuda = torch.cuda.is_available()
+cuda = False
 dtype = torch.float
 
 
@@ -64,32 +65,40 @@ class Trainer():
         self.save=save
         self.model_save_path = model_save_path
 
-    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30):
+    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30, batch_size = 64):
         dataset = torch.utils.data.TensorDataset(x_data, y_data)
-        loader = torch.utils.data.DataLoader(dataset, batch_size = 64)
+        loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         # loss_fn = torch.nn.NLLLoss()
         loss_fn = torch.nn.MSELoss()
         for i in range(epochs):
             print("Pretraining epoch: " + str(i))
+            total_loss = 0
             for batch_ndx, sample in enumerate(loader):
                 opt.zero_grad()
                 # pdb.set_trace()
+                if cuda:
+                    sample[0]  = sample[0].cuda()
+                    sample[1]  = sample[1].cuda()
                 out = model(sample[0])
                 if self.task in ['transferA2B', 'transferB2A']: 
                     out *= torch.tensor([-1,-1,1,1], dtype=dtype)
 
                 if train_load:
                     loss = loss_fn(out, sample[1]) 
+                    # loss = loss_fn(out[:,:2], sample[1][:,:2]) + .1*loss_fn(out[:,2:4], sample[1][:,2:4])
                 else:
                     loss = loss_fn(out[:,:2], sample[1][:,:2])
 
+                # if i> 0:
+                #     pdb.set_trace()
                 # loss += l2_coeff*offset_l2(model)
+                total_loss += loss.data
                 loss.backward()
 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
                 opt.step()
             # diagnostics(model, train_type='pretrain', epoch=i)
-
+            print("total_loss: " + str(total_loss))
         if self.save:
             with open(self.model_save_path, 'wb') as pickle_file:
                 torch.save(model, pickle_file)
@@ -263,6 +272,7 @@ class Trainer():
             else:
                 mse_fn = torch.nn.MSELoss(reduction='none')
                 scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
+                if cuda: scaling = scaling.cuda()
                 loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
                 # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
                 # pdb.set_trace()
@@ -324,8 +334,8 @@ class Trainer():
             total_distance = 0
             switch = True
             # loss_type = 'stepwise'
-            # loss_type = 'asdfsdf'
-            loss_type = 'mix'
+            loss_type = 'asdfsdf'
+            # loss_type = 'mix'
             # loss_type = 'softmax'
             thresh = 150
 
@@ -465,18 +475,24 @@ class BayesianTrainer:
         self.save=save
         self.model_save_path = model_save_path
 
-    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30):
+    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30, batch_size = 64):
         dataset = torch.utils.data.TensorDataset(x_data, y_data)
-        loader = torch.utils.data.DataLoader(dataset, batch_size = 64)
+
+        loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         # loss_fn = torch.nn.NLLLoss()
         loss_fn = torch.nn.MSELoss()
         for i in range(epochs):
             print("Pretraining epoch: " + str(i))
             for batch_ndx, sample in enumerate(loader):
-                opt.zero_grad()
-                out, log_p = model(sample[0], sample[1])
 
-                loss = -torch.sum(log_p[...,:self.state_dim])
+                opt.zero_grad()
+                # pdb.set_trace()
+                if cuda:
+                    out, log_p = model(sample[0].cuda(), sample[1].cuda())
+                else:
+                    out, log_p = model(sample[0], sample[1])
+
+                loss = -torch.mean(log_p[...,:self.state_dim])
 
                 # pdb.set_trace()
                 loss.backward()
@@ -513,12 +529,14 @@ class BayesianTrainer:
 
             # pdb.set_trace()
             residual = true_states[:,i] - state
+            # residual = true_states[:,i,-4:]
             norm_res = z_score_norm_single(residual, y_mean_arr, y_std_arr)
+
             # pdb.set_trace()
 
             state_delta, log_p = model(inpt, residual)
-            # l = -log_p[...,:self.state_dim]/((i+1)*batch.shape[1])
-            l = -log_p[...,:2]/((i+1)*batch.shape[1])
+            l = -log_p[...,:self.state_dim]/((i+1))
+            # l = -log_p[...,:2]/((i+1))
             # pdb.set_trace()
             loss += l
 
@@ -531,7 +549,7 @@ class BayesianTrainer:
         sim_deltas = torch.stack(sim_deltas, 1)
         states = torch.stack(states, 1)
 
-        return torch.sum(loss), 1, batch.shape[1]
+        return torch.mean(loss), 1, batch.shape[1]
 
 
     def run_traj(self, model, traj, threshold = 50, return_states = False, 
@@ -549,8 +567,6 @@ class BayesianTrainer:
             true_states = true_states.cuda()
 
         mse_fn = torch.nn.MSELoss()
-
-        hidden
 
         def softmax(states):
             mse_fn = torch.nn.MSELoss(reduction='none')
