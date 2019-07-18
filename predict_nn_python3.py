@@ -41,7 +41,7 @@ class predict_nn:
         inpt = self.normalize(sa)
         inpt = torch.tensor(inpt, dtype=torch.float)
         state_delta = self.model(inpt)
-        state_delta = state_delta.detach().numpy()#*2.5
+        state_delta = state_delta.detach().numpy()*1.1
         state_delta = self.denormalize(state_delta)
 
         next_state = (sa[...,:4] + state_delta)

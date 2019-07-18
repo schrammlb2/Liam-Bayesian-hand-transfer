@@ -207,7 +207,7 @@ for test_traj in range(4):
 
     # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
     # fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
-    # plt.savefig(fig_loc)
+    plt.savefig(fig_loc)
     # plt.close()
     plt.show()
 

@@ -261,7 +261,7 @@ class Trainer():
             return stepwise(sim_deltas)*alpha + softmax(states)*(1-alpha)
 
         def get_loss(loss_type, states = None, sim_deltas = None):
-            if loss_type == 'soft maximum':
+            if loss_type in ['soft maximum', 'softmax']:
                 loss = softmax(states)
             elif loss_type == 'mix':
                 loss = mix(sim_deltas, states)
@@ -269,7 +269,7 @@ class Trainer():
             elif loss_type == 'stepwise':
                 loss = stepwise(sim_deltas)
                 return loss
-            else:
+            elif loss_type == 'pointwise':
                 mse_fn = torch.nn.MSELoss(reduction='none')
                 scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
                 if cuda: scaling = scaling.cuda()
@@ -277,6 +277,9 @@ class Trainer():
                 # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
                 # pdb.set_trace()
                 loss = torch.einsum('ikj,k->', [loss_temp, scaling])
+                # alpha = .9
+                # loss*= alpha
+                # loss += softmax(states)*(1-alpha)
                 # loss = mse_fn(states[:,:2], true_states[:,:2])
 
             return loss
@@ -320,9 +323,9 @@ class Trainer():
 
     #------------------------------------------------------------------------------------------------------------------------------------
 
-    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8):
+    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise'):
         j=0
-        print('\nBatched trajectory training')
+        print('\nBatched trajectory training with batch size ' + str(batch_size))
         for epoch in range(epochs):
             grad_norms = []
 
@@ -333,10 +336,6 @@ class Trainer():
             total_completed = 0
             total_distance = 0
             switch = True
-            # loss_type = 'stepwise'
-            loss_type = 'asdfsdf'
-            # loss_type = 'mix'
-            # loss_type = 'softmax'
             thresh = 150
 
 
@@ -387,9 +386,9 @@ class Trainer():
                 for i, episode in enumerate(val_data[len(val_data)//2:]):
                     val_loss, completed, dist = self.run_traj(model, episode, threshold = None)
                     total_loss += val_loss.data
-                print('Loss: ' + str(total_loss/len(val_data)))
-                print('completed: ' + str(total_completed/len(val_data)))
-                print('Average time before divergence: ' + str(total_distance/len(val_data)))
+                print('Loss: ' + str(total_loss/(len(val_data)*2)))
+                print('completed: ' + str(total_completed/(len(val_data)*2)))
+                print('Average time before divergence: ' + str(total_distance/(len(val_data)*2)))
 
             else:
                 print('Loss: ' + str(total_loss/len(batches)))
@@ -519,6 +518,15 @@ class BayesianTrainer:
 
         loss = 0
 
+        def pointwise(states, true_states):
+            mse_fn = torch.nn.MSELoss(reduction='none')
+            scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
+            if cuda: scaling = scaling.cuda()
+            loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
+            # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
+            # pdb.set_trace()
+            loss = torch.einsum('ikj,k->', [loss_temp, scaling])
+
         for i in range(batch.shape[1]):
             states.append(state)
             action = batch[:,i,self.state_dim:self.state_dim+self.action_dim]
@@ -553,7 +561,7 @@ class BayesianTrainer:
 
 
     def run_traj(self, model, traj, threshold = 50, return_states = False, 
-        loss_type = 'softmax', alpha = .5):
+        loss_type = 'log prob', alpha = .5):
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         # if type(traj) != type(torch.tensor(1)):
         #     pdb.set_trace() 
@@ -568,11 +576,13 @@ class BayesianTrainer:
 
         mse_fn = torch.nn.MSELoss()
 
-        def softmax(states):
-            mse_fn = torch.nn.MSELoss(reduction='none')
-            mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
-            mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
-            return torch.logsumexp(mse, 0)
+        # def softmax(states, true_states):
+        #     mse_fn = torch.nn.MSELoss(reduction='none')
+        #     mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+        #     mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
+        #     return torch.logsumexp(mse, 0)
+
+        # def log_
 
         for i, point in enumerate(traj):
             states.append(state)
@@ -609,7 +619,7 @@ class BayesianTrainer:
 
         return softmax(states), 1, len(traj)
 
-    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8):
+    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8, loss_type='log prob'):
         j=0
         print('\nBatched trajectory training')
         for epoch in range(epochs):

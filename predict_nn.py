@@ -14,7 +14,7 @@ class predict_nn:
 
         base_path = ''
         save_path = base_path + 'save_model/robotic_hand_real/pytorch/'
-        model_name = 'real_A_1.pkl' # Name of the model we want to depickle
+        # model_name = 'real_A_1.pkl' # Name of the model we want to depickle
         model_name = 'real_A_heldout0.1_1.pkl'
         self.model_path = save_path + model_name
 
