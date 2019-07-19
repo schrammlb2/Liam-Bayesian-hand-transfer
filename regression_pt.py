@@ -22,7 +22,7 @@ held_out = .1
 # _ , arg1, arg2, arg3 = argv
 epochs = 250
 nn_type = '1'
-SAVE = True
+SAVE = False
 method = None
 
 # pdb.set_trace()
@@ -315,9 +315,9 @@ if __name__ == "__main__":
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=50, batch_size=64)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=16)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=4)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=2)

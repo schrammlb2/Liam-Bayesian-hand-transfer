@@ -40,6 +40,7 @@ assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_
 
 
 
+base_state_dim = 4
 state_dim = 8
 action_dim = 2 if (task == 'sim_A' or task == 'sim_B') else 6
 # action_dim = 6
@@ -49,6 +50,9 @@ new_lr = lr/2
 # lr
 # lr = .01
 dropout_rate = .1
+
+
+ave_coeff = .9 
 
 dtype = torch.float
 cuda = torch.cuda.is_available()
@@ -69,7 +73,7 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
-    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+    model = pt_build_model(nn_type, state_dim+action_dim, base_state_dim, dropout_rate)
     if cuda: 
         model = model.cuda()
 
@@ -79,11 +83,21 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
 
     l2_coeff = .000
 
-
+def grad_norm(model):
+    # return 0
+    total_norm = 0
+    for p in model.parameters():
+        if p.requires_grad:
+            try: 
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item()**2
+            except: 
+                pass
+    return total_norm**(.5)
 
 class Trainer():
     def __init__(self, task, norm, method=None, save=True, model_save_path=None, state_dim = 4, action_dim = 6):
-        self.state_dim = state_dim
+        self.state_dim = base_state_dim
         self.action_dim = action_dim
         self.task = task
         self.norm = norm
@@ -104,19 +118,25 @@ class Trainer():
                 if cuda:
                     sample[0]  = sample[0].cuda()
                     sample[1]  = sample[1].cuda()
-                out = model(sample[0])
+                output = model(sample[0])
                 if self.task in ['transferA2B', 'transferB2A']: 
-                    out *= torch.tensor([-1,-1,1,1], dtype=dtype)
+                    output *= torch.tensor([-1,-1,1,1], dtype=dtype)
 
-                loss = loss_fn(out, sample[1]) 
+                # pdb.set_trace()
+                loss = loss_fn(output, sample[1]) 
                 
                 total_loss += loss.data
+
+
+
                 loss.backward()
 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
                 opt.step()
             # diagnostics(model, train_type='pretrain', epoch=i)
             print("total_loss: " + str(total_loss))
+            if i> 0:
+                pdb.set_trace()
         if self.save:
             with open(self.model_save_path, 'wb') as pickle_file:
                 torch.save(model, pickle_file)
@@ -146,16 +166,25 @@ class Trainer():
             mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
             return torch.logsumexp(mse, 0)
 
+
+        vel = torch.zeros((4))        
+        state_delta = torch.zeros((4))
+
+
         for i, point in enumerate(traj):
             states.append(state)
             action = point[self.state_dim:self.state_dim+self.action_dim]
             if cuda: action = action.cuda()   
 
-            inpt = torch.cat((state, action), 0)
+            next_vel = vel*ave_coeff + state_delta*(1-ave_coeff)
+            # velocities.append(next_vel)
+            vel = next_vel      
+
+            inpt = torch.cat((state, vel, action), 0)
             inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
-            state_delta = model(inpt)
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+            state_delta_norm = model(inpt)
+            state_delta = z_score_denorm_single(state_delta_norm, y_mean_arr, y_std_arr)
             if self.task in ['transferA2B', 'transferB2A']: 
                 state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
             sim_deltas.append(state_delta)
@@ -182,7 +211,7 @@ class Trainer():
             return states
 
 
-        return get_loss(loss_type, states=states, sim_deltas=sim_deltas), 1, len(traj)
+        return softmax(states), 1, len(traj)
 
 
     #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -199,64 +228,38 @@ class Trainer():
             true_states = true_states.cuda()
 
         mse_fn = torch.nn.MSELoss()
-
         def softmax(states):
             mse_fn = torch.nn.MSELoss(reduction='none')
-            # mse_fn = torch.nn.MSELoss()
             msepos = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
-            mseload = mse_fn(states[:,:,2:4], true_states[:,:states.shape[1],2:4])
-            alpha = .95
-            mse = alpha*msepos + (1-alpha)*mseload
-            mse = torch.mean(mse, 2) #Sum two position losses at each time step to get the Euclidean distance 
-            # mse = torch.sum(mse, (1,2))     #Or sum to find the maximum divergence in the batch and emphasize that
+            mse = torch.mean(msepos, 2) #Sum two position losses at each time step to get the Euclidean distance 
             loss = torch.logsumexp(mse, 1) #Softmax divergence over the path
             loss = torch.mean(loss) #Sum over batch
-            # loss = torch.logsumexp(loss, 0)
             return loss
-
-        def stepwise(sim_deltas):
-            # sim_deltas = states[1:, :2] - states[:-1, :2] #starting position version
-            # real_deltas = traj[1:, :2] - traj[:-1, :2] #starting position version
-            # real_deltas = traj[:, :2] - traj[:, -4:-2] # y_data version
-            real_deltas = batch[:,:,:2] - batch[:,:,-4:-2]
-            # real_deltas = batch[:,:,:4] - batch[:,:,-4:]
-            mse_fn = torch.nn.MSELoss()
-            # pdb.set_trace()
-            mse = mse_fn(sim_deltas[:,:,:2], real_deltas[:,:sim_deltas.shape[1],:])
-            return mse
-
-        def mix(sim_deltas, states, alpha = .9):
-            return stepwise(sim_deltas)*alpha + softmax(states)*(1-alpha)
 
         def get_loss(loss_type, states = None, sim_deltas = None):
-            if loss_type in ['soft maximum', 'softmax']:
-                loss = softmax(states)
-            elif loss_type == 'mix':
-                loss = mix(sim_deltas, states)
-                return loss
-            elif loss_type == 'stepwise':
-                loss = stepwise(sim_deltas)
-                return loss
-            elif loss_type == 'pointwise':
-                mse_fn = torch.nn.MSELoss(reduction='none')
-                scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
-                if cuda: scaling = scaling.cuda()
-                loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
-                # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
-                # pdb.set_trace()
-                loss = torch.einsum('ikj,k->', [loss_temp, scaling])
-                # alpha = .9
-                # loss*= alpha
-                # loss += softmax(states)*(1-alpha)
-                # loss = mse_fn(states[:,:2], true_states[:,:2])
-
+            mse_fn = torch.nn.MSELoss(reduction='none')
+            scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
+            if cuda: scaling = scaling.cuda()
+            loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
+            loss = torch.einsum('ikj,k->', [loss_temp, scaling])
             return loss
+
+
+        vel = batch[:,0,self.state_dim: self.state_dim*2]       
+        state_delta = batch[:,0,self.state_dim: self.state_dim*2]  
+
 
         for i in range(batch.shape[1]):
             states.append(state)
             action = batch[:,i,self.state_dim:self.state_dim+self.action_dim]
             if cuda: action = action.cuda() 
-            inpt = torch.cat((state, action), 1)
+
+            next_vel = vel*ave_coeff + state_delta*(1-ave_coeff)
+            # velocities.append(next_vel)
+            vel = next_vel      
+
+            # pdb.set_trace()
+            inpt = torch.cat((state, vel, action), 1)
             inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
             state_delta = model(inpt)
@@ -264,22 +267,23 @@ class Trainer():
             state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
             if self.task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
             sim_deltas.append(state_delta)
-
-            vel_
+      
 
             state= state_delta + state
 
             #May need random component here to prevent overfitting
             # states = torch.cat((states,state.view(1, self.state_dim)), 0)
-            if threshold and i%10:
+            if threshold:
                 with torch.no_grad():
-                    mse = mse_fn(state[:,:2], true_states[:,i,:2])
+                    # pdb.set_trace()
+                    mse = mse_fn(states[i][:,:2], true_states[:,i,:2])
                 if mse > threshold:
                     states = torch.stack(states, 1)
                     sim_deltas = torch.stack(sim_deltas, 0)
                     # loss = mix(sim_deltas, states, alpha)
                     loss = softmax(states)
                     # loss = get_loss(loss_type, states=states, sim_deltas=sim_deltas)
+                    # pdb.set_trace()
                     return loss, 0, i
                     # return mse_fn(state[:2], true_states[i,:2]), 0, i
 
@@ -394,16 +398,15 @@ all_velocities = []
 for episode in out_y:
     vel = np.zeros((4))
     velocities = [vel]
-    alpha = .9
     for step in episode:
-        next_vel = vel*alpha + step*(1-alpha)
+        next_vel = vel*ave_coeff + step*(1-ave_coeff)
         velocities.append(next_vel)
         vel = next_vel
     velocities = np.stack(velocities, 0)
     all_velocities.append(velocities)
 
 
-new_out = [np.concatenate((out_ep[:,:-(state_dim//2)], vel_ep[:-1], out_ep[:,-(state_dim//2):], vel_ep[1:]), 1) for (out_ep, vel_ep) in zip(out, all_velocities)]
+new_out = [np.concatenate((out_ep[:,:-base_state_dim], vel_ep[:-1], out_ep[:,-base_state_dim:]), 1) for (out_ep, vel_ep) in zip(out, all_velocities)]
 out = new_out
 # state_dim *= 2
 # pdb.set_trace()
@@ -428,7 +431,7 @@ DATA = np.concatenate(out)
 
 
 x_data = DATA[:, :task_ofs]
-y_data = DATA[:, -state_dim:] - DATA[:, :state_dim]
+y_data = DATA[:, -base_state_dim:] - DATA[:, :base_state_dim]
 
 
 x_mean_arr = np.mean(x_data, axis=0)
@@ -467,7 +470,7 @@ if cuda:
 
 print('\n\n Beginning task: ')
 # print('\t' + outfile_name)
-pdb.set_trace()
+# pdb.set_trace()
 
 if __name__ == "__main__":
     thresh = 10
@@ -499,7 +502,7 @@ if __name__ == "__main__":
     else:
         lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=70, train_load=True, batch_size=256)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=5, train_load=True, batch_size=256)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)

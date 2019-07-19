@@ -221,8 +221,56 @@ class BNNWrapper(torch.nn.Module):
         # return distro.mean
 
 
+class StddevNet(torch.nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(StddevNet, self).__init__()
+        self.mean_l1 = torch.nn.Linear(input_dim, 128)
+        self.std_l1 = torch.nn.Linear(output_dim, 128)
+        self.std_dev_model = torch.nn.Sequential(
+              torch.nn.Linear(128, 128),
+              torch.nn.SELU(),
+              torch.nn.AlphaDropout(.1),
+              torch.nn.Linear(128, output_dim),
+        )
+    def forward(self, x, std_devs = None):
+        # pdb.set_trace()
+        l1 = self.mean_l1(x)# + self.std_l1(std_devs)
+        feats = F.alpha_dropout(F.selu(l1), .1)
+        return F.elu(self.std_dev_model(feats))+1
 
 
+class DividedBNN(torch.nn.Module):
+    def __init__(self, mean_model, input_dim, output_dim):
+        super(DividedBNN, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.mean_model = mean_model
+        self.std_dev_model = StddevNet(input_dim, output_dim)
+        self.sensor_noise = torch.autograd.Variable(torch.tensor(0.0, dtype=torch.float), requires_grad=True)
+
+    def forward(self,x, std_devs=None, true_state=None):
+        # pdb.set_trace()
+        means = self.mean_model(x)
+        out_stds = self.std_dev_model(x, std_devs)
+        distro = torch.distributions.normal.Normal(means, out_stds)
+
+        # interp = torch.sigmoid(self.sensor_noise)
+        interp = .1
+        sample = distro.sample()*interp + (1-interp)*means
+        # sample = means
+        
+        if true_state is not None:
+            log_p = distro.log_prob(true_state)
+            nan_locs = (log_p != log_p) #Get locations where log_p is undefined
+            if nan_locs.any():
+                pdb.set_trace()
+            log_p[nan_locs] = 0 #Set the loss in those locations to 0
+            if type(std_devs) == type(None): return sample, log_p
+            return sample, out_stds, log_p
+            
+        # sample = distro.sample()
+        if type(std_devs) == type(None): return sample
+        return sample, out_stds
 
 
 

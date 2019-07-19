@@ -55,6 +55,7 @@ def clean_data(out):
     return list(filter(lambda x: len(x) > length_threshold, divided_out))
 
 
+
 class Trainer():
     def __init__(self, task, norm, method=None, save=True, model_save_path=None, state_dim = 4, action_dim = 6):
         self.state_dim = state_dim
@@ -273,7 +274,8 @@ class Trainer():
                 mse_fn = torch.nn.MSELoss(reduction='none')
                 scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
                 if cuda: scaling = scaling.cuda()
-                loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
+                # loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
+                loss_temp = mse_fn(states[:,:,:], true_states[:,:states.shape[1],:])
                 # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
                 # pdb.set_trace()
                 loss = torch.einsum('ikj,k->', [loss_temp, scaling])
@@ -386,9 +388,9 @@ class Trainer():
                 for i, episode in enumerate(val_data[len(val_data)//2:]):
                     val_loss, completed, dist = self.run_traj(model, episode, threshold = None)
                     total_loss += val_loss.data
-                print('Loss: ' + str(total_loss/(len(val_data)*2)))
-                print('completed: ' + str(total_completed/(len(val_data)*2)))
-                print('Average time before divergence: ' + str(total_distance/(len(val_data)*2)))
+                print('Loss: ' + str(total_loss/(len(val_data)/2)))
+                print('completed: ' + str(total_completed/(len(val_data)/2)))
+                print('Average time before divergence: ' + str(total_distance/(len(val_data)/2)))
 
             else:
                 print('Loss: ' + str(total_loss/len(batches)))
@@ -492,8 +494,6 @@ class BayesianTrainer:
                     out, log_p = model(sample[0], sample[1])
 
                 loss = -torch.mean(log_p[...,:self.state_dim])
-
-                # pdb.set_trace()
                 loss.backward()
 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
@@ -576,11 +576,11 @@ class BayesianTrainer:
 
         mse_fn = torch.nn.MSELoss()
 
-        # def softmax(states, true_states):
-        #     mse_fn = torch.nn.MSELoss(reduction='none')
-        #     mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
-        #     mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
-        #     return torch.logsumexp(mse, 0)
+        def softmax(states):
+            mse_fn = torch.nn.MSELoss(reduction='none')
+            mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+            mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
+            return torch.logsumexp(mse, 0)
 
         # def log_
 
@@ -692,6 +692,252 @@ class BayesianTrainer:
                 print('Loss: ' + str(total_loss/len(batches)))
                 print('completed: ' + str(total_completed/len(batches)))
                 print('Average time before divergence: ' + str(total_distance/len(batches)))
+
+            if self.save:
+                with open(self.model_save_path, 'wb') as pickle_file:
+                    torch.save(model, pickle_file)
+
+
+
+
+
+class DividedBayesTrainer:
+    def __init__(self, task, norm, method=None, save=True, model_save_path=None):
+        self.state_dim = 4
+        self.action_dim = 6
+        self.task = task
+        self.norm = norm
+        self.method = method
+        self.save=save
+        self.model_save_path = model_save_path
+
+    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30, batch_size = 64):
+        dataset = torch.utils.data.TensorDataset(x_data, y_data)
+
+        loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
+        # loss_fn = torch.nn.NLLLoss()
+        loss_fn = torch.nn.MSELoss()
+        for i in range(epochs):
+            print("Pretraining epoch: " + str(i))
+            for batch_ndx, sample in enumerate(loader):
+
+                opt.zero_grad()
+                # pdb.set_trace()
+                std_dev = torch.ones(4)*random.random()
+                if cuda:
+                    _,  _,  log_p = model(sample[0].cuda(), std_dev.cuda(), sample[1].cuda())
+                else:
+                    _,  _,  log_p = model(sample[0], std_dev,  sample[1])
+
+                loss = -torch.mean(log_p[...,:self.state_dim])
+
+                # pdb.set_trace()
+                loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
+                opt.step()
+
+        if self.save:
+            with open(self.model_save_path, 'wb') as pickle_file:
+                torch.save(model, pickle_file)
+
+    def run_traj_batch(self, model, batch, threshold = 50, return_states = False, 
+        loss_type = 'softmax', alpha = .5):
+        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
+        true_states = batch[:,:,:self.state_dim]
+        state = batch[:,0,:self.state_dim]
+        states = []#state.view(1, self.state_dim)
+        sim_deltas = []
+        if cuda:
+            state = state.cuda()
+            true_states = true_states.cuda()
+
+        mse_fn = torch.nn.MSELoss()
+
+        loss = 0
+        initial_std_dev = torch.ones(4)*.01
+
+        std_dev = initial_std_dev
+
+        def pointwise(states, true_states):
+            mse_fn = torch.nn.MSELoss(reduction='none')
+            scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1)*states.shape[1])
+            if cuda: scaling = scaling.cuda()
+            loss_temp = mse_fn(states[:,:,:2], true_states[:,:states.shape[1],:2])
+            # loss = sum([loss_temp[:,i,:]*scale for i, scale in enumerate(scaling)])
+            # pdb.set_trace()
+            loss = torch.einsum('ikj,k->', [loss_temp, scaling])
+
+        for i in range(batch.shape[1]):
+            states.append(state)
+            action = batch[:,i,self.state_dim:self.state_dim+self.action_dim]
+            if cuda: action = action.cuda() 
+            inpt = torch.cat((state, action), 1)
+
+            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+
+            # pdb.set_trace()
+            residual = true_states[:,i] - state
+            # residual = true_states[:,i,-4:]
+            norm_res = z_score_norm_single(residual, y_mean_arr, y_std_arr)
+
+            # pdb.set_trace()
+
+            state_delta,  std_dev, log_p = model(inpt, std_dev, residual)
+            l = -log_p[...,:self.state_dim]/((i+1))
+            # l = -log_p[...,:2]/((i+1))
+            # pdb.set_trace()
+            loss += l
+
+            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+            if self.task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+            sim_deltas.append(state_delta)
+
+            state= state_delta + state           
+
+        sim_deltas = torch.stack(sim_deltas, 1)
+        states = torch.stack(states, 1)
+
+        return torch.mean(loss), 1, batch.shape[1]
+
+
+    def run_traj(self, model, traj, threshold = 50, return_states = False, 
+        loss_type = 'log prob', alpha = .5):
+        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
+        # if type(traj) != type(torch.tensor(1)):
+        #     pdb.set_trace() 
+
+        true_states = traj[:,:self.state_dim]
+        state = traj[0][:self.state_dim]
+        states = []#state.view(1, self.state_dim)
+        sim_deltas = []
+        if cuda:
+            state = state.cuda()
+            true_states = true_states.cuda()
+
+        mse_fn = torch.nn.MSELoss()
+
+        def softmax(states):
+            mse_fn = torch.nn.MSELoss(reduction='none')
+            mse = mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+            mse = torch.sum(mse, 1)  #Sum two position losses at each time step to get the Euclidean distance
+            return torch.logsumexp(mse, 0)
+
+        # def log_
+
+        initial_std_dev = torch.ones(4)*.01
+        std_dev = initial_std_dev
+
+        for i, point in enumerate(traj):
+            states.append(state)
+            action = point[self.state_dim:self.state_dim+self.action_dim]
+            if cuda: action = action.cuda()   
+
+            inpt = torch.cat((state, action), 0)
+            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+
+            state_delta, std_dev = model(inpt, std_dev)
+            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+            if self.task in ['transferA2B', 'transferB2A']: 
+                state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+            sim_deltas.append(state_delta)
+
+            state= state_delta + state
+
+            #May need random component here to prevent overfitting
+            # states = torch.cat((states,state.view(1, self.state_dim)), 0)
+            if threshold and i%10:
+                with torch.no_grad():
+                    mse = mse_fn(state[:2], true_states[i,:2])
+                if mse > threshold:
+                    states = torch.stack(states, 0)
+                    sim_deltas = torch.stack(sim_deltas, 0)
+                    # loss = mix(sim_deltas, states, alpha)
+                    loss = softmax(states)
+                    # loss = get_loss(loss_type, states=states, sim_deltas=sim_deltas)
+                    return loss, 0, i
+                    # return mse_fn(state[:2], true_states[i,:2]), 0, i
+
+        sim_deltas = torch.stack(sim_deltas, 0)
+        states = torch.stack(states, 0)
+
+        return softmax(states), 1, len(traj)
+
+    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8, loss_type='log prob'):
+        j=0
+        print('\nBatched trajectory training')
+        for epoch in range(epochs):
+            grad_norms = []
+
+            print('Epoch: ' + str(epoch))
+            np.random.shuffle(out)
+            total_loss = 0
+            # pdb.set_trace()
+            total_completed = 0
+            total_distance = 0
+            switch = True
+            # loss_type = 'stepwise'
+            # loss_type = 'asdfsdf'
+            loss_type = 'mix'
+            thresh = 150
+
+
+            batch_lists = [out[i: min(len(out), i+ batch_size)] for i in range(0, len(out), batch_size)] 
+            episode_lengths = [[len(ep) for ep in batch] for batch in batch_lists]
+            min_lengths = [min(episode_length) for episode_length in episode_lengths]
+            rand_maxes = [[len(episode) - min_length for episode in batch_list] for batch_list, min_length in zip(batch_lists,min_lengths)]
+            rand_starts = [[random.randint(0, rmax) for rmax in rmaxes] for rmaxes in rand_maxes]
+            batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
+
+            batches = [torch.stack(batch, 0) for batch in batch_slices] 
+
+            accum = 8//batch_size
+
+            for i, batch in enumerate(batches):
+                if accum == 0 or j % accum ==0: opt.zero_grad()
+
+                j += 1
+                # if i % 30 == 0:
+                    # print(i*batch_size)
+                loss, completed, dist = self.run_traj_batch(model, batch, threshold = thresh, loss_type=loss_type)
+                total_loss += loss.data
+                total_completed += completed
+                total_distance += dist
+                # pdb.set_trace()
+
+                loss.backward()
+                if accum == 0 or j % accum ==0: 
+                    if self.task == 'transferA2B' and method in ['constrained_retrain', 'constrained_restart']:
+                        loss = offset_l2(model)*l2_coeff*accum
+                        loss.backward()
+
+                    grad_norms.append(grad_norm(model))
+
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
+                    opt.step()
+
+            if val_data:
+                total_loss = 0
+                total_completed = 0
+                total_distance = 0
+                for i, episode in enumerate(val_data[:len(val_data)//2]):
+                    _ , completed, dist = self.run_traj(model, episode, threshold = 50)
+                    total_completed += completed
+                    total_distance += dist
+
+                for i, episode in enumerate(val_data[len(val_data)//2:]):
+                    val_loss, completed, dist = self.run_traj(model, episode, threshold = None)
+                    total_loss += val_loss.data
+                print('Loss: ' + str(total_loss/len(val_data)))
+                print('completed: ' + str(total_completed/len(val_data)))
+                print('Average time before divergence: ' + str(total_distance/len(val_data)))
+
+            else:
+                print('Loss: ' + str(total_loss/len(batches)))
+                print('completed: ' + str(total_completed/len(batches)))
+                print('Average time before divergence: ' + str(total_distance/len(batches)))
+
+            print('Sensor noise: ' + str(model.sensor_noise))
 
             if self.save:
                 with open(self.model_save_path, 'wb') as pickle_file:

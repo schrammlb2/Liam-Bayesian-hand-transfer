@@ -23,7 +23,7 @@ held_out = .1
 epochs = 250
 nn_type = '1'
 # nn_type = 'LSTM'
-SAVE = False
+SAVE = True
 method = None
 
 # pdb.set_trace()
@@ -55,6 +55,7 @@ dropout_rate = .1
 dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
+cuda = False
 
 if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
@@ -237,18 +238,34 @@ print('\n\n Beginning task: ' + model_save_path)
 
 if __name__ == "__main__":
     thresh = 10
-    model = BNNWrapper(model, input_dim, state_dim)
+    # model = BNNWrapper(model, input_dim, state_dim)
+    with open("save_model/robotic_hand_real/pytorch/real_A_heldout0.1_1.pkl", 'rb') as pickle_file:
+        # print("Running " + model_file)
+        # pdb.set_trace()
+        mean_model = torch.load(pickle_file, map_location='cpu')
+        model = DividedBNN(mean_model, state_dim+action_dim, state_dim)
+
     if cuda: 
         model = model.cuda()
     norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
     trainer = BayesianTrainer(task, norm, model_save_path=model_save_path) 
+    # trainer = DividedBayesTrainer(task, norm, model_save_path=model_save_path) 
 
     np.random.shuffle(out)
 
     lr = .000025
-    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-    trainer.pretrain(model, x_data, y_data, opt, epochs=20, batch_size=256)
+    # opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+    opt = torch.optim.Adam(model.std_dev_model.parameters(), lr=lr, weight_decay=.001)
+    # opt = torch.optim.Adam(model.std_dev_model.parameters(), lr=lr, weight_decay=.001)
+
+    trainer.pretrain(model, x_data, y_data, opt, epochs=1, batch_size=256)
     # if method == 'nonlinear_transform':
     #     model.set_base_model_train(True)
-    opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
-    trainer.batch_train(model, opt, out, val_data =val_data, epochs=100, batch_size=128)
+    # opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
+    opt = torch.optim.Adam(model.std_dev_model.parameters(), lr=.0000025, weight_decay=.001)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=128)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=64)      
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=4)
+    trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=2)

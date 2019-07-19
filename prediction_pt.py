@@ -113,6 +113,31 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     states = torch.stack(states, 0)
     return states
 
+def bayes_run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
+    true_states = traj[:,:state_dim]
+    state = traj[0][:state_dim]
+    states = []#state.view(1, state_dim)
+
+    std_devs = torch.ones(4)*.01
+    for i, point in enumerate(traj):
+        states.append(state)
+        action = point[state_dim:state_dim+action_dim]
+        # if cuda: action = action.cuda()    
+        inpt = torch.cat((state, action), 0)
+        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+
+        state_delta, std_devs = model(inpt, std_devs)
+        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        
+        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        state= state_delta + state
+        #May need random component here to prevent overfitting
+        # states = torch.cat((states,state.view(1, state_dim)), 0)
+                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+    states = torch.stack(states, 0)
+    return states
+
 
 
 model_file = save_path+task + '_' + nn_type + '.pkl'
@@ -130,7 +155,7 @@ if method != '':
         else:
             model_file = save_path+task + '_'  + nn_type + '.pkl'
 
-# model_file = model_file[:-4] + '_bayesian.pkl'
+model_file = model_file[:-4] + '_bayesian.pkl'
 # model_file = 'save_model/robotic_hand_simulator/pytorch/sim_A_heldout' + str(held_out) + '_1.pkl'
 
 
@@ -168,7 +193,8 @@ for test_traj in range(4):
     else:
         ground_truth = make_traj(trajectory, test_traj)
 
-    states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+    # states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+    states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 
     max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
     mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
@@ -183,9 +209,9 @@ for test_traj in range(4):
     plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
 
     plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-    # for i in range(10):
-    #     states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
-    #     plt.plot(states[:, 0], states[:, 1], color='red')
+    for i in range(10):
+        states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+        plt.plot(states[:, 0], states[:, 1], color='red')
 
     plt.axis('scaled')
     plt.title('NN Prediction -- pos Space')
@@ -205,8 +231,8 @@ for test_traj in range(4):
     fig_loc += task_str + '_pretrain_batch/'
     fig_loc += 'traj' + str(test_traj) + '.png'
 
-    # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
-    # fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
+    fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
+    fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
     plt.savefig(fig_loc)
     # plt.close()
     plt.show()
