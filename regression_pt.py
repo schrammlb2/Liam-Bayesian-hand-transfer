@@ -133,6 +133,7 @@ elif task in ['transferA2B', 'transferB2A']:
         mse_fn = torch.nn.MSELoss()
         base_parameters = [p.detach() for p in copy.deepcopy(model).parameters()]
         def offset_l2(new_model):
+            # pdb.set_trace()
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
                 loss += torch.norm(base_parameters[i]-parameter)
@@ -152,7 +153,7 @@ elif task in ['transferA2B', 'transferB2A']:
         for param in model[0].parameters():
             param.requires_grad = False
 
-    else: 
+    elif method != 'retrain': 
         print("Invalid method type")
         assert False
 
@@ -296,18 +297,19 @@ if __name__ == "__main__":
         lr = .0001
         lr = .0003
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        # trainer.pretrain(model, x_data, y_data, opt, epochs=5)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=100)
+        # trainer.pretrain(model, x_data, y_data, opt, epochs=2)#, train_load=False)
+        reg_loss = offset_l2 if ('constrained' in method) else None
+        trainer.pretrain(model, x_data, y_data, opt, epochs=100, reg_loss=reg_loss)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        # trainer.batch_train(model, opt, out, val_data=val_data, epochs=25, batch_size=64)
+        # trainer.batch_train(model, opt, out, val_data=val_data, epochs=60, batch_size=64)
 
 
-        trainer.batch_train(model, opt, out, val_data=val_data, epochs=10, batch_size=64)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=8)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
+        trainer.batch_train(model, opt, out, val_data=val_data, epochs=10, batch_size=64, reg_loss=reg_loss)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=8, reg_loss=reg_loss)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4, reg_loss=reg_loss)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2, reg_loss=reg_loss)
     elif held_out > .9: 
         lr = .0001
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)

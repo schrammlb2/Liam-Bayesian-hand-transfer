@@ -71,7 +71,7 @@ class Trainer():
 
 
 
-    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30, batch_size = 64):
+    def pretrain(self, model, x_data, y_data, opt, train_load = True, epochs = 30, batch_size = 64, reg_loss = None):
         dataset = torch.utils.data.TensorDataset(x_data, y_data)
         loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         # loss_fn = torch.nn.NLLLoss()
@@ -101,6 +101,7 @@ class Trainer():
                 else:
                     loss = loss_fn(out[:,:2], sample[1][:,:2])
 
+                if reg_loss: loss += reg_loss(model)
                 # if i> 0:
                 #     pdb.set_trace()
                 # loss += l2_coeff*offset_l2(model)
@@ -356,7 +357,7 @@ class Trainer():
 
     #------------------------------------------------------------------------------------------------------------------------------------
 
-    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise'):
+    def batch_train(self, model, opt, out, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', reg_loss = None):
         j=0
         print('\nBatched trajectory training with batch size ' + str(batch_size))
         for epoch in range(epochs):
@@ -393,6 +394,8 @@ class Trainer():
                 total_loss += loss.data
                 total_completed += completed
                 total_distance += dist
+
+                if reg_loss: loss += reg_loss(model)
 
                 loss.backward()
                 if accum == 0 or j % accum ==0: 

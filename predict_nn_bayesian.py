@@ -26,7 +26,7 @@ class predict_nn:
         self.y_mean_arr, self.y_std_arr = y_norm_arr[0], y_norm_arr[1]
 
         with open(self.model_path, 'rb') as pickle_file:
-            self.model = torch.load(pickle_file, map_location='cpu')
+            self.model = torch.load(pickle_file, map_location='cpu').eval()
 
 
     def normalize(self, data):

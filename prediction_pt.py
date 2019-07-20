@@ -177,7 +177,7 @@ if bayes:
 
 with open(model_file, 'rb') as pickle_file:
     print("Running " + model_file)
-    model = torch.load(pickle_file, map_location='cpu')#.eval()
+    model = torch.load(pickle_file, map_location='cpu').eval()
 
 
 with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:

@@ -139,8 +139,8 @@ class NonlinearTransformedModel(torch.nn.Module):
 
         D = self.D_model(feats)
         alpha = self.gate(feats)
-        # skip = False
-        skip = True
+        skip = False
+        # skip = True
 
         gradient_decay = .1
 
