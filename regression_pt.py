@@ -26,14 +26,12 @@ SAVE = False
 method = None
 
 # pdb.set_trace()
-if len(argv) > 1 and argv[1] != '_':
-    data_type = argv[1]
-if len(argv) > 2 and argv[2] != '_' :
-    task = argv[2]
+if len(argv) > 1 and argv[1] != '_' :
+    task = argv[1]
+if len(argv) > 2 and argv[2] != '_':
+    held_out = float(argv[2])
 if len(argv) > 3 and argv[3] != '_':
-    held_out = float(argv[3])
-if len(argv) > 4 and argv[4] != '_':
-    nn_type = argv[4]
+    nn_type = argv[3]
 
 assert data_type in ['pos', 'load']
 assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B']
@@ -69,7 +67,11 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
-    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+    if 'sim' in task:
+        model = pt_build_model('2', state_dim+action_dim, state_dim, dropout_rate)
+    else:
+        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+
     if cuda: 
         model = model.cuda()
 
@@ -84,8 +86,8 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
 elif task in ['transferA2B', 'transferB2A']:
 
     method = 'retrain'
-    if len(argv) > 5:
-        method = argv[5]
+    if len(argv) > 4:
+        method = argv[4]
 
 
 
@@ -196,7 +198,7 @@ elif task in ['transferA2B', 'transferB2A']:
 #------------------------------------------------------------------------------------------------------------------------------------
 
 
-if task == 'real_B':
+if task in ['real_B', 'sim_A']:
     out = clean_data(out)
     print("data cleaning worked")
     # print(len(out))
@@ -215,6 +217,7 @@ out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
 # pdb.set_trace()
 
+full_dataset = out
 
 val_size = int(len(out)*held_out)
 # val_size = len(out) - int(held_out)
@@ -227,6 +230,7 @@ print("\nTraining with " + str(len(out)) + ' trajectories')
 
 
 DATA = np.concatenate(out)
+FULL_DATA = np.concatenate(out)
 
 
 
@@ -234,10 +238,19 @@ x_data = DATA[:, :task_ofs]
 y_data = DATA[:, -4:] - DATA[:, :4]
 
 
-x_mean_arr = np.mean(x_data, axis=0)
-x_std_arr = np.std(x_data, axis=0)
-y_mean_arr = np.mean(y_data, axis=0)
-y_std_arr = np.std(y_data, axis=0)
+full_x_data = FULL_DATA[:, :task_ofs]
+full_y_data = FULL_DATA[:, -4:] - FULL_DATA[:, :4]
+
+
+# x_mean_arr = np.mean(x_data, axis=0)
+# x_std_arr = np.std(x_data, axis=0)
+# y_mean_arr = np.mean(y_data, axis=0)
+# y_std_arr = np.std(y_data, axis=0)
+
+x_mean_arr = np.mean(full_x_data, axis=0)
+x_std_arr = np.std(full_x_data, axis=0)
+y_mean_arr = np.mean(full_y_data, axis=0)
+y_std_arr = np.std(full_y_data, axis=0)
 x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
 y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
 if SAVE:
@@ -265,7 +278,7 @@ if cuda:
 
 
 print('\n\n Beginning task: ')
-# print('\t' + outfile_name)
+print('\t' + model_save_path)
 # pdb.set_trace()
 
 if __name__ == "__main__":
@@ -281,12 +294,20 @@ if __name__ == "__main__":
     if held_out > .95: 
         lr = .000065
         lr = .0001
+        lr = .0003
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=5)
+        # trainer.pretrain(model, x_data, y_data, opt, epochs=5)
+        trainer.pretrain(model, x_data, y_data, opt, epochs=100)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data=val_data, epochs=25, batch_size=64)
+        # trainer.batch_train(model, opt, out, val_data=val_data, epochs=25, batch_size=64)
+
+
+        trainer.batch_train(model, opt, out, val_data=val_data, epochs=10, batch_size=64)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=8)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
     elif held_out > .9: 
         lr = .0001
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
@@ -298,26 +319,34 @@ if __name__ == "__main__":
     elif task == 'sim_A':
         lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=5, train_load=True, batch_size=256)
-        # if method == 'nonlinear_transform':
+        trainer.pretrain(model, x_data, y_data, opt, epochs=40, train_load=True, batch_size=256)
+
         #     model.set_base_model_train(True)
-        opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=5, batch_size=64)
+        opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=256)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=64)
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=2, batch_size=16)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=3, batch_size=8)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=2, batch_size=4)
-        trainer.batch_train(model, opt, out, val_data =val_data, epochs=2, batch_size=2)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=15, batch_size=16)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=15, batch_size=8)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=5, batch_size=1)
     else:
         lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, x_data, y_data, opt, epochs=70, train_load=True, batch_size=256)
+        # trainer.pretrain(model, x_data, y_data, opt, epochs=10, train_load=True, batch_size=256)
+        if task == 'real_A': trainer.pretrain(model, x_data, y_data, opt, epochs=70, train_load=True, batch_size=256)
+        if task == 'real_B': trainer.pretrain(model, x_data, y_data, opt, epochs=150, train_load=True, batch_size=256)
+
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
+        trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=256)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
+        if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=64)
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=16)
+        if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=4)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=2)

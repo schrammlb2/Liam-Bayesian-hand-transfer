@@ -14,14 +14,12 @@ class predict_nn:
 
         base_path = ''
         save_path = base_path + 'save_model/robotic_hand_real/pytorch/'
-        model_name = 'real_A_1.pkl' # Name of the model we want to depickle
-        model_name = 'real_A_heldout0.1_1.pkl'
-        # model_name = 'real_A_heldout0.1_1_bayesian.pkl'
-        
+        # model_name = 'real_A_1.pkl' # Name of the model we want to depickle
+        model_name = 'real_A_heldout0.1_1_bayesian.pkl'
         self.model_path = save_path + model_name
 
         print('[predict_nn] Loading training data...')
-        with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
+        with open(save_path+'/normalization_arr/normalization_arr_py2', 'rb') as pickle_file:
             x_norm_arr, y_norm_arr = pickle.load(pickle_file)
 
         self.x_mean_arr, self.x_std_arr = x_norm_arr[0], x_norm_arr[1]
@@ -38,16 +36,23 @@ class predict_nn:
         return data * self.y_std_arr[:data.shape[-1]] + self.y_mean_arr[:data.shape[-1]]
 
 
-    def predict(self, sa):
+    def predict(self, sa, std_devs = None):
 
         inpt = self.normalize(sa)
         inpt = torch.tensor(inpt, dtype=torch.float)
-        state_delta = self.model(inpt)
-        state_delta = state_delta.detach().numpy()*1.1
+        if type(std_devs) == type(None): 
+            state_delta= self.model(inpt)
+        else: 
+            state_delta, std_devs = self.model(inpt, std_devs)
+        state_delta = state_delta.detach().numpy()
         state_delta = self.denormalize(state_delta)
 
         next_state = (sa[...,:4] + state_delta)
-        return next_state
+
+        if type(std_devs) == type(None): 
+            return next_state
+        else: 
+            return next_state, std_devs
 
 
 
@@ -68,10 +73,15 @@ if __name__ == "__main__":
         'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
         'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
         }
-    trajectory_path = trajectory_path_map[task]
+    # trajectory_path = trajectory_path_map[task]
+    trajectory_path = 'data/robotic_hand_real/A/testpaths_py2.pkl'
 
     with open(trajectory_path, 'rb') as pickle_file:
-        trajectory = pickle.load(pickle_file, encoding='latin1')
+        trajectory = pickle.load(pickle_file)#, encoding='latin1')
+
+        # u = pickle._Unpickler(pickle_file)
+        # u.encoding = 'latin1'
+        # trajectory = u.load()
 
     def make_traj(trajectory, test_traj):
         real_positions = trajectory[0][test_traj]
@@ -85,7 +95,7 @@ if __name__ == "__main__":
 
 
 
-    # BATCH = True
+    BATCH = True
     BATCH = False
     for test_traj in range(4):
 
@@ -108,7 +118,11 @@ if __name__ == "__main__":
             for i in range(traj.shape[1]):
                 states.append(state)
                 action = actions[:,i]
-                sa = np.concatenate((state, action), -1)
+                # pdb.set_trace()
+                try: 
+                    sa = np.concatenate((state, action), -1)
+                except:
+                    pdb.set_trace()
                 state = NN.predict(sa)
             states = np.stack(states, 1)
 
@@ -118,14 +132,15 @@ if __name__ == "__main__":
             true_states = traj[:,:state_dim]
             state = traj[0][:state_dim]
         
-
+            std_devs = torch.ones(4)*.01
             for i, point in enumerate(traj):
                 states.append(state)
                 action = point[state_dim:state_dim+action_dim]
                 # if cuda: action = action.cuda() 
                 # pdb.set_trace()
                 sa = np.concatenate((state, action), 0)
-                state = NN.predict(sa)
+                # state = NN.predict(sa)
+                state, std_devs = NN.predict(sa, std_devs)
             states = np.stack(states, 0)
 
 
