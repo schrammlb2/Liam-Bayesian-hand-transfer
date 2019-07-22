@@ -108,8 +108,7 @@ class NonlinearTransformedModel(torch.nn.Module):
         self.model = LinearTransformedModel(old_model, input_dim, output_dim)
 
         h = 64
-        # h = 128
-
+        h = 128
         self.transform_model = torch.nn.Sequential(
               # torch.nn.Linear(input_dim, 128),
               torch.nn.Linear(input_dim+output_dim, h),

@@ -8,13 +8,12 @@ import torch
 import torch.utils.data
 from common.data_normalization import *
 from common.pt_build_model import *
-from common.utils import *
+from common.utils_clean import *
 import random
 import matplotlib.pyplot as plt
 
 from sys import argv
 
-data_type = 'pos' #type of data used for this task
 task = 'sim_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
@@ -22,7 +21,6 @@ held_out = .1
 # _ , arg1, arg2, arg3 = argv
 epochs = 250
 nn_type = '1'
-SAVE = True
 SAVE = False
 method = None
 
@@ -34,7 +32,6 @@ if len(argv) > 2 and argv[2] != '_':
 if len(argv) > 3 and argv[3] != '_':
     nn_type = argv[3]
 
-assert data_type in ['pos', 'load']
 assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B']
 
 
@@ -48,11 +45,13 @@ new_lr = lr/2
 # lr
 # lr = .01
 dropout_rate = .1
+l2_coeff = .01
 
 dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 cuda = False
+reg_loss = None
 
 if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     if task == 'real_A':
@@ -68,10 +67,7 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
-    if 'sim' in task:
-        model = pt_build_model('2', state_dim+action_dim, state_dim, dropout_rate)
-    else:
-        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+    model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
 
     if cuda: 
         model = model.cuda()
@@ -80,16 +76,12 @@ if task in ['real_A', 'real_B', 'sim_A', 'sim_B']:
 
 
 
-    l2_coeff = .000
-
-
 
 elif task in ['transferA2B', 'transferB2A']:
 
     method = 'retrain'
     if len(argv) > 4:
         method = argv[4]
-
 
 
     if task == 'transferA2B':
@@ -103,16 +95,6 @@ elif task in ['transferA2B', 'transferB2A']:
 
 
 
-    model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
-
-
-    if method in ['constrained_retrain', 'constrained_restart']:
-        l2_coeff = .001
-        if len(argv) > 6:
-            l2_coeff = float(argv[6])
-            model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + str(l2_coeff) + '_' + nn_type + '.pkl'
-
-
     with open(datafile_name, 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
 
@@ -120,39 +102,30 @@ elif task in ['transferA2B', 'transferB2A']:
         if cuda: model = torch.load(pickle_file).cuda()
         else: model = torch.load(pickle_file, map_location='cpu')
 
-    if method == 'constrained_retrain':
-        mse_fn = torch.nn.MSELoss()
+
+    model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+
+
+    if method in ['constrained_retrain', 'constrained_restart']:
         base_parameters = [p.detach() for p in copy.deepcopy(model).parameters()]
-        def offset_l2(new_model):
+        def reg_loss(new_model):
             loss = 0
             for i,parameter in enumerate(new_model.parameters()):
-                loss += torch.norm(base_parameters[i]-parameter)
-
+                loss += torch.norm(base_parameters[i]-parameter)*l2_coeff
             return loss
 
-    elif method == 'constrained_restart':
-        mse_fn = torch.nn.MSELoss()
-        base_parameters = [p.detach() for p in copy.deepcopy(model).parameters()]
-        def offset_l2(new_model):
-            # pdb.set_trace()
-            loss = 0
-            for i,parameter in enumerate(new_model.parameters()):
-                loss += torch.norm(base_parameters[i]-parameter)
+        if len(argv) > 6:
+            l2_coeff = float(argv[6])
+            model_save_path = save_path+'/'+ task + '_' + method + '_heldout' + str(held_out)+ '_' + str(l2_coeff) + '_' + nn_type + '.pkl'
 
-            return loss
-        model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
+        if method == 'constrained_restart':
+            model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)
 
     elif method == 'linear_transform':
         model = LinearTransformedModel(model, state_dim + action_dim, state_dim)
 
     elif method == 'nonlinear_transform':
         model = NonlinearTransformedModel(model, state_dim + action_dim, state_dim)
-        # model = pt_build_model(nn_type, state_dim+action_dim, state_dim, dropout_rate)        
-
-    elif method == 'single_transform':
-        model = torch.nn.Sequential(*[model, torch.nn.Linear(state_dim , state_dim)])
-        for param in model[0].parameters():
-            param.requires_grad = False
 
     elif method != 'retrain': 
         print("Invalid method type")
@@ -160,55 +133,13 @@ elif task in ['transferA2B', 'transferB2A']:
 
 
 
-# outfile_name = task + '_diagnostics'
-# if 'transfer' in task:  
-#     outfile_name = task + '_' + method + '_'
-#     if method == 'constrained_restart':
-#         outfile_name += 'l2.'+str(l2_coeff)
-
-#     outfile_name += '_held_out.'+str(held_out)
-#     outfile_name+='_diagnostics'
-
-# diagnostics_file = open(outfile_name, 'w+')
-# diagnostics_file.write('\n')
-# diagnostics_file.close()
-
-
-# def diagnostics(model, train_type = None, epoch=None, loss=None, divergence=None, grad_norms= None):
-#     try:
-#         wn = weight_norm(model)
-#         if grad_norms:
-#             gn = sum(grad_norms)/len(grad_norms)
-#         else:
-#             gn = grad_norm(model)
-#         diag_str = ''
-#         if train_type:
-#             diag_str += train_type + ' epoch ' + str(epoch) + '\n'
-#         diag_str += 'Weight norm: ' + str(wn) + '\n'
-#         diag_str += 'Grad norm: ' + str(gn) + '\n'
-#         if loss: 
-#             diag_str += 'Loss: ' + str(loss) + '\n'
-#         if divergence: 
-#             diag_str += 'Divergence: ' + str(divergence) + '\n'
-#         diag_str += '--------------------------------------------\n'
-#         diagnostics_file = open(outfile_name, 'a+')
-#         diagnostics_file.write(diag_str)
-#         diagnostics_file.close()
-#     except:
-#         print("diagnostics error")
-
-#------------------------------------------------------------------------------------------------------------------------------------
-
 
 if task in ['real_B', 'sim_A']:
     out = clean_data(out)
     print("data cleaning worked")
-    # print(len(out))
 
 new_state_dim = 4
 
-data_type_offset = {'ave_load':4, 'load':2, 'pos':0}
-dt_ofs = data_type_offset[data_type]
 task_ofs = new_state_dim + action_dim
 
 length_threshold = 30
@@ -217,66 +148,16 @@ out = list(filter(lambda x: len(x) > length_threshold, out))
 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
-# pdb.set_trace()
-
 full_dataset = out
 
 val_size = int(len(out)*held_out)
-# val_size = len(out) - int(held_out)
-val_data = out[val_size:]
+
+val_data = out[-val_size:]
 val_data = val_data[:min(10, len(val_data))]
-out = out[:len(out)-val_size]
+out = out[:-val_size]
 
 
 print("\nTraining with " + str(len(out)) + ' trajectories')
-
-
-DATA = np.concatenate(out)
-FULL_DATA = np.concatenate(out)
-
-
-
-x_data = DATA[:, :task_ofs]
-y_data = DATA[:, -4:] - DATA[:, :4]
-
-
-full_x_data = FULL_DATA[:, :task_ofs]
-full_y_data = FULL_DATA[:, -4:] - FULL_DATA[:, :4]
-
-
-# x_mean_arr = np.mean(x_data, axis=0)
-# x_std_arr = np.std(x_data, axis=0)
-# y_mean_arr = np.mean(y_data, axis=0)
-# y_std_arr = np.std(y_data, axis=0)
-
-x_mean_arr = np.mean(full_x_data, axis=0)
-x_std_arr = np.std(full_x_data, axis=0)
-y_mean_arr = np.mean(full_y_data, axis=0)
-y_std_arr = np.std(full_y_data, axis=0)
-x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
-y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
-if SAVE:
-    with open(save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
-        pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
-
-
-x_data = torch.tensor(x_data, dtype=dtype)
-y_data = torch.tensor(y_data, dtype=dtype)
-
-x_mean_arr = torch.tensor(x_mean_arr, dtype=dtype)
-x_std_arr = torch.tensor(x_std_arr, dtype=dtype)
-y_mean_arr = torch.tensor(y_mean_arr, dtype=dtype)
-y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
-# out = [z_score_normalize]
-
-if cuda:
-    x_mean_arr = x_mean_arr.cuda()
-    x_std_arr = x_std_arr.cuda()
-    y_mean_arr = y_mean_arr.cuda()
-    y_std_arr = y_std_arr.cuda()
-    # 
-
-
 
 
 print('\n\n Beginning task: ')
@@ -284,34 +165,29 @@ print('\t' + model_save_path)
 # pdb.set_trace()
 
 if __name__ == "__main__":
-    thresh = 10
-    norm = x_mean_arr, x_std_arr, y_mean_arr, y_std_arr
-    # if method:
-    #     traj_obj = util(task, norm, method)
-    trainer = Trainer(task, norm, model_save_path=model_save_path, state_dim=state_dim, action_dim=action_dim) 
+    np.random.shuffle(out)
+
+    trainer = Trainer(task, out, model_save_path=model_save_path, save_path=save_path, state_dim=state_dim, action_dim=action_dim, task_ofs = task_ofs, reg_loss=reg_loss) 
+    
+    # trainer = Trainer(task, norm, model_save_path=model_save_path, state_dim=state_dim, action_dim=action_dim) 
     # print('beginning run')
 
-    np.random.shuffle(out)
     # val_data = out[int(len(out)*(1-held_out)):]
     if held_out > .95: 
         lr = .000065
         lr = .0001
         lr = .0003
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        # trainer.pretrain(model, x_data, y_data, opt, epochs=2)#, train_load=False)
+        # trainer.pretrain(model, opt, epochs=1)#, train_load=False)
         
-        reg_loss = offset_l2 if (method and 'constrained' in method) else None
-        trainer.pretrain(model, x_data, y_data, opt, epochs=100, reg_loss=reg_loss)
+        trainer.pretrain(model, opt, epochs=50)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        # trainer.batch_train(model, opt, out, val_data=val_data, epochs=60, batch_size=64)
+        trainer.batch_train(model, opt, val_data=val_data, epochs=10, batch_size=16)
+        trainer.batch_train(model, opt, val_data=val_data, epochs=10, batch_size=4)
+        trainer.batch_train(model, opt, val_data=val_data, epochs=10, batch_size=1)
 
-
-        # trainer.batch_train(model, opt, out, val_data=val_data, epochs=10, batch_size=64, reg_loss=reg_loss)
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=8, reg_loss=reg_loss)
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=4, reg_loss=reg_loss)
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2, reg_loss=reg_loss)
     elif held_out > .9: 
         lr = .0001
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
@@ -354,10 +230,5 @@ if __name__ == "__main__":
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=4)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=2)
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32, loss_type='softmax')
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=4, loss_type='softmax')
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=2, loss_type='softmax')
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
-        # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=1)
 # diagnostics_file.close()
     

@@ -161,12 +161,12 @@ if len(argv) > 2 and argv[2] != '_':
 
 if method != '': 
     model_file = save_path+task + '_' + method + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
-    if method == 'constrained_restart':
-        if len(argv) > 5:
-            l2_coeff = argv[5]
-            model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
-        else:
-            model_file = save_path+task + '_'  + nn_type + '.pkl'
+    # if method == 'constrained_restart':
+    #     if len(argv) > 5:
+    #         l2_coeff = argv[5]
+    #         model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
+    #     else:
+    #         model_file = save_path+task + '_'  + nn_type + '.pkl'
 
 
 if bayes:

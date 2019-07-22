@@ -101,12 +101,14 @@ class Trainer():
                 else:
                     loss = loss_fn(out[:,:2], sample[1][:,:2])
 
-                if reg_loss: loss += reg_loss(model)
+                total_loss += loss.data
+                loss.backward()
+
+                # if reg_loss != None: loss = reg_loss(model)
+                # loss.backward()
                 # if i> 0:
                 #     pdb.set_trace()
                 # loss += l2_coeff*offset_l2(model)
-                total_loss += loss.data
-                loss.backward()
 
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
                 opt.step()
