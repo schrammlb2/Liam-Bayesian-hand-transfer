@@ -17,24 +17,24 @@
 
 
 export method='nonlinear_transform'
-# python3 regression_pt.py _ transferB2A .99 _ $method
-# python3 regression_pt.py _ transferB2A .98 _ $method
-# python3 regression_pt.py _ transferB2A .97 _ $method
-# python3 regression_pt.py _ transferB2A .96 _ $method
-# python3 regression_pt.py _ transferB2A .95 _ $method
-# python3 regression_pt.py _ transferB2A .94 _ $method
-# python3 regression_pt.py _ transferB2A .93 _ $method
-# python3 regression_pt.py _ transferB2A .92 _ $method
-# python3 regression_pt.py _ transferB2A .91 _ $method
+python3 regression_pt.py _ transferB2A .99 _ $method
+python3 regression_pt.py _ transferB2A .98 _ $method
+python3 regression_pt.py _ transferB2A .97 _ $method
+python3 regression_pt.py _ transferB2A .96 _ $method
+python3 regression_pt.py _ transferB2A .95 _ $method
+python3 regression_pt.py _ transferB2A .94 _ $method
+python3 regression_pt.py _ transferB2A .93 _ $method
+python3 regression_pt.py _ transferB2A .92 _ $method
+python3 regression_pt.py _ transferB2A .91 _ $method
 # python3 regression_pt.py _ transferB2A .9 _ $method
 # python3 regression_pt.py _ transferB2A .8 _ $method
 # python3 regression_pt.py _ transferB2A .7 _ $method
 # python3 regression_pt.py _ transferB2A .6 _ $method
 # python3 regression_pt.py _ transferB2A .5 _ $method
 # python3 regression_pt.py _ transferB2A .4 _ $method
-python3 regression_pt.py _ transferB2A .3 _ $method
-python3 regression_pt.py _ transferB2A .2 _ $method
-python3 regression_pt.py _ transferB2A .1 _ $method
+# python3 regression_pt.py _ transferB2A .3 _ $method
+# python3 regression_pt.py _ transferB2A .2 _ $method
+# python3 regression_pt.py _ transferB2A .1 _ $method
 
 
 

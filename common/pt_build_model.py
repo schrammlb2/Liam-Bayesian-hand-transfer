@@ -38,8 +38,10 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
               torch.nn.SELU(),
               torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, 128),
-              torch.nn.SELU(),
-              torch.nn.AlphaDropout(dropout_p),
+              torch.nn.Tanh(),
+              torch.nn.Dropout(dropout_p),
+              # torch.nn.SELU(),
+              # torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, output_dim),
         )
     elif nn_type == '2':
@@ -115,8 +117,10 @@ class NonlinearTransformedModel(torch.nn.Module):
               torch.nn.SELU(),
               torch.nn.AlphaDropout(.1),
               torch.nn.Linear(h, h),
-              torch.nn.SELU(),
-              torch.nn.AlphaDropout(.1),
+              # torch.nn.SELU(),
+              # torch.nn.AlphaDropout(.1),
+              torch.nn.Tanh(),
+              torch.nn.Dropout(.1),
         )
 
         self.A_model = torch.nn.Linear(h, output_dim**2)

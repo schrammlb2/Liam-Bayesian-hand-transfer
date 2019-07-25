@@ -20,17 +20,14 @@ test_traj = 1
 nn_type = '1'
 method = ''
 
+
 if len(argv) > 1 and argv[1] != '_':
-    test_traj = int(argv[1])
+    nn_type = argv[1]
 if len(argv) > 2 and argv[2] != '_':
-    task = argv[2]
-if len(argv) > 3 and argv[3] != '_':
-    nn_type = argv[3]
-if len(argv) > 4 and argv[4] != '_':
-    held_out = argv[4]
-if len(argv) > 5 and argv[5] != '_' and 'transfer' in task:
+    held_out = argv[3]
+if len(argv) > 3 and argv[3] != '_' and 'transfer' in task:
     method = 'retrain'
-    method = argv[5]
+    method = argv[3]
 
 assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 
@@ -68,8 +65,8 @@ def make_traj(trajectory, test_traj):
     return np.append(real_positions, acts, axis=1)
 
 
-if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
-    ground_truth = make_traj(trajectory, test_traj)
+# if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
+#     ground_truth = make_traj(trajectory, test_traj)
 
 
 state_dim = 4
