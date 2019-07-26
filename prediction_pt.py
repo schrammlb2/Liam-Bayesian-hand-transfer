@@ -19,6 +19,7 @@ test_traj = 1
 bayes = False
 # _ , arg1, arg2, arg3 = argv
 nn_type = '1'
+nn_type = 'LSTM'
 method = ''
 
 
@@ -97,27 +98,44 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     states = []#state.view(1, state_dim)
     model.eval()
 
-    for i, point in enumerate(traj):
-        states.append(state)
-        action = point[state_dim:state_dim+action_dim]
-        # if cuda: action = action.cuda()    
-        inpt = torch.cat((state, action), 0)
-        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+    # if nn_type == 'LSTM':
+    #     actions = traj[...,state_dim:state_dim+action_dim]
+    #     state = z_score_normalize(state, x_mean_arr, x_std_arr)
+    #     state_stack = state.view(1,-1).repeat(actions.shape[-2], 1)
+    #     # pdb.set_trace()
+    #     inpt = torch.cat((state_stack, actions),-1)
+    #     states, _ = model(inpt)
 
-        state_delta = model(inpt)
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        
-        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-        # pdb.set_trace()
+    #     states += state_stack
+    #     states = z_score_denormalize(states, x_mean_arr, x_std_arr)
+    #     pdb.set_trace()
 
-        state= state_delta + state
+    hidden = None
+    if False: pass
+    else:
+        for i, point in enumerate(traj):
+            states.append(state)
+            action = point[state_dim:state_dim+action_dim]
+            # if cuda: action = action.cuda() 
+            # pdb.set_trace()   
+            inpt = torch.cat((state, action), 0)
+            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
-        # state = torch.cat((state[:2], traj[i,2:4]), 0)
-        #May need random component here to prevent overfitting
-        # states = torch.cat((states,state.view(1, state_dim)), 0)
-                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])
-    states = torch.stack(states, 0)
+            
+            if nn_type == 'LSTM': 
+                state_delta, hidden = model(inpt, hidden)
+                state_delta = state_delta.squeeze(0)
+            else: state_delta = model(inpt)
+
+            if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+            # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+            
+            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+            # pdb.set_trace()
+
+            state= state_delta + state
+
+        states = torch.stack(states, 0)
     return states
 
 def bayes_run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
@@ -209,8 +227,17 @@ for test_traj in range(4):
     else:
         ground_truth = make_traj(trajectory, test_traj)
 
+    # ground_truth = ground_truth[:len(ground_truth)//4]
+    ground_truth = ground_truth[...,:6]
+
     if bayes: states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
     else: states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+
+    # if LSTM:
+    #     state = ground_truth[0, :state_dim]
+    #     actions = ground_truth[:, state_dim:2]
+    #     states = actions
+
 
     max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
     mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()

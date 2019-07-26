@@ -20,6 +20,117 @@ class SplitModel(torch.nn.Module):
         return torch.cat((pos_out, load_out), -1)
 
 
+# class LSTMNet(torch.nn.Module):
+#     def __init__(self, action_dim, state_dim):
+#         super(LSTMNet, self).__init__()
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#         self.l1 = torch.nn.GRU(action_dim, state_dim, dropout = .1, batch_first = True)
+#         self.l2 = torch.nn.GRU(state_dim, 100, dropout = .1, batch_first = True, num_layers=1)
+#         self.l3 = torch.nn.GRU(100, state_dim, dropout = .1, batch_first = True)
+
+#     def forward(self, base_state, actions):
+#         traj_length = actions.shape[-2]
+
+#         state = base_state.unsqueeze(0)
+#         if len(actions.shape) == 2:
+#             actions = actions.unsqueeze(1)
+#             state = state.unsqueeze(1)
+#         # pdb.set_trace()
+#         # f1, _ = self.l1(actions, (state, state*0))
+#         f1, _ = self.l1(actions, state)        
+#         f2, _ = self.l2(f1)
+#         f3, _ = self.l3(f2)
+#         tiled_state = state.transpose(0,1).repeat(1, traj_length, 1)
+#         # pdb.set_trace()
+#         out = tiled_state + f3 # Add the starting postion memory location to the output
+
+#         return out
+
+class LSTMNet(torch.nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(LSTMNet, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        h = 100
+        self.LSTM = False
+        # self.l1 = torch.nn.GRU(action_dim+state_dim, state_dim, dropout = .1, batch_first = True)
+        if self.LSTM:
+            self.l1 = torch.nn.LSTM(input_dim, h, dropout = .1, batch_first = True, num_layers=2)
+            self.l2 = torch.nn.LSTM(h, output_dim, dropout = .1, batch_first = True)
+        else:
+            self.l1 = torch.nn.GRU(input_dim, h, dropout = .1, batch_first = True, num_layers=2)
+            self.l2 = torch.nn.GRU(h, output_dim, dropout = .1, batch_first = True)
+
+    def forward(self, inpt, hidden = None):
+
+        # state = base_state.unsqueeze(0)
+        if len(inpt.shape) == 1:
+            inpt = inpt.unsqueeze(0)
+        if len(inpt.shape) == 2:
+            inpt = inpt.unsqueeze(1)
+
+
+        m1 = torch.zeros(2, inpt.shape[0] ,100)
+        sd1 = torch.zeros(2, inpt.shape[0] ,100)
+
+        m2 = torch.zeros(1, inpt.shape[0] ,self.output_dim)
+        sd2 = torch.zeros(1, inpt.shape[0] ,self.output_dim)
+
+        h1_distro = torch.distributions.normal.Normal(m1, sd1)
+        h2_distro = torch.distributions.normal.Normal(m2, sd2)
+
+        if hidden == None:
+            if self.LSTM:
+                h = (h1_distro.sample(), h2_distro.sample())
+                c = (h1_distro.sample(), h2_distro.sample())
+                hidden = (h, c)
+            else:
+                hidden = (h1_distro.sample(), h2_distro.sample())
+            # pdb.set_trace()
+
+        if hidden:
+            f1, h1 = self.l1(inpt, hidden[0])     
+            f2, h2 = self.l2(f1, hidden[1])
+        else:
+            f1, h1 = self.l1(inpt)     
+            f2, h2 = self.l2(f1)
+        out = f2.squeeze(1)# + inpt[...,:self.output_dim]# Add the starting postion memory location to the output
+
+        return out, (h1,h2)
+
+#         return out
+
+# class LSTMNet(torch.nn.Module):
+#     def __init__(self, action_dim, state_dim):
+#         super(LSTMNet, self).__init__()
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#         h = 100
+#         # self.l1 = torch.nn.GRU(action_dim+state_dim, state_dim, dropout = .1, batch_first = True)
+#         self.l1 = torch.nn.GRU(action_dim+state_dim, h, dropout = .1, batch_first = True, num_layers=2)
+#         self.l2 = torch.nn.GRU(h, state_dim, dropout = .1, batch_first = True)
+
+#     def forward(self, base_state, actions):
+#         traj_length = actions.shape[-2]
+
+#         state = base_state.unsqueeze(0)
+#         if len(actions.shape) == 2:
+#             actions = actions.unsqueeze(1)
+#             state = state.unsqueeze(1)
+
+#         tiled_state = state.transpose(0,1).repeat(1, traj_length, 1)
+#         inpt = torch.cat((actions, tiled_state), -1)
+#         # pdb.set_trace()
+
+#         # f1, _ = self.l1(actions, (state, state*0))
+#         f1, _ = self.l1(inpt)     
+#         f2, _ = self.l2(f1)
+#         # pdb.set_trace()
+#         out = tiled_state + f2 # Add the starting postion memory location to the output
+
+#         return out
+
 
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
     if nn_type == '0':
@@ -47,8 +158,9 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
     elif nn_type == '2':
         return SplitModel(input_dim, output_dim, dropout_p)
 
-    # elif nn_type == 'LSTM':
-    #     model = torch.nn.LSTM(input_dim, output_dim, num_layers=3, dropout=dropout_p)
+    elif nn_type == 'LSTM':
+        # model = LSTMNet(2, output_dim)
+        model = LSTMNet(input_dim, output_dim)
 
 
     # pdb.set_trace()

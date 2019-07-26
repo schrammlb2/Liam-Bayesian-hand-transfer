@@ -76,7 +76,7 @@ def pointwise(states, true_states):
 
 
 class Trainer():
-    def __init__(self, task, episodes,  method=None, save=True, model_save_path=None, save_path = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
+    def __init__(self, task, episodes,  method=None, save=True, model_save_path=None, save_path = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None, nn_type=None):
         self.task_ofs = task_ofs
         self.state_dim = state_dim
         self.new_state_dim = state_dim
@@ -92,6 +92,7 @@ class Trainer():
         self.norm, data = self.get_norms(episodes)
         self.x_data, self.y_data = data
         self.episodes = episodes
+        self.nn_type= nn_type
         # if reg_loss == None:
         #     self.reg_loss = lambda m: 0
         #     self.reg_loss = False
@@ -105,6 +106,8 @@ class Trainer():
         dataset = torch.utils.data.TensorDataset(self.x_data, self.y_data)
         loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         loss_fn = torch.nn.MSELoss()
+
+        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         for i in range(epochs):
             print("Pretraining epoch: " + str(i))
             total_loss = 0
@@ -115,7 +118,15 @@ class Trainer():
                     sample[0]  = sample[0].cuda()
                     sample[1]  = sample[1].cuda()
 
-                output = model(sample[0])
+                if self.nn_type == 'LSTM':
+                    output, hidden = model(sample[0])
+
+                    # output = output - sample[0][...,:self.state_dim]
+                    # output = z_score_denormalize(output, x_mean_arr, x_mean_arr)
+                    # output = z_score_normalize(output, y_mean_arr, y_mean_arr)
+                else:
+                    output = model(sample[0])
+
 
                 if self.task in ['transferA2B', 'transferB2A']: 
                     output *= torch.tensor([-1,-1,1,1], dtype=dtype)
@@ -192,6 +203,8 @@ class Trainer():
 
     def run_traj_batch(self, model, batch, threshold = 50, return_states = False, 
         loss_type = 'softmax', alpha = .5):
+        if len(batch.shape) == 2:
+            batch = batch.unsqueeze(0)
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         true_states = batch[...,:,:self.state_dim]
         state = batch[...,0,:self.state_dim]
@@ -219,43 +232,75 @@ class Trainer():
 
             return loss
 
-        for i in range(batch.shape[1]):
-            states.append(state)
-            action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
-            if cuda: action = action.cuda() 
-            inpt = torch.cat((state, action), -1)
-            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+        if False:#self.nn_type == 'LSTM':
+            actions = batch[...,self.state_dim:self.state_dim+self.action_dim]
+            data = state
+            # state = (data- x_mean_arr[:data.shape[-1]]) / x_std_arr[:data.shape[-1]]
+            state = z_score_normalize(state, x_mean_arr, x_std_arr)
+            state_stack = state.unsqueeze(0).transpose(0,1).repeat(1, actions.shape[-2], 1)
+            # pdb.set_trace()
+            inpt = torch.cat((state_stack, actions),-1)
+            states, _  = model(inpt)
+            # pdb.set_trace()
+            # states = model(state, actions)
+            # states = z_score_denormalize(states, x_mean_arr, x_std_arr)
+            if True:#batch.shape[-2] < 30:
+                sim_deltas = states[:,1:,:] - states[:,:-1,:]
+                state_deltas = batch[:,1:,:self.state_dim] - batch[:,:-1,:self.state_dim]
+                state_deltas = z_score_normalize(state_deltas, y_mean_arr, y_std_arr)
+                pdb.set_trace()
+                loss = mse_fn(sim_deltas, state_deltas)
+                return loss, 1, batch.shape[-2]
+            else:
+                states += state_stack
+                states = z_score_denormalize(states, y_mean_arr, y_std_arr) 
 
-            state_delta = model(inpt)
+            data = states
+            states = states * x_std_arr[:data.shape[-1]] + x_mean_arr[:data.shape[-1]]
 
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-            if self.task in ['transferA2B', 'transferB2A']: 
-                state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
-            sim_deltas.append(state_delta)
+        else:
+            hidden= None
+            for i in range(batch.shape[1]):
+                states.append(state)
+                action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
+                if cuda: action = action.cuda() 
+                inpt = torch.cat((state, action), -1)
+                inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
-            state= state_delta + state
+                if self.nn_type == 'LSTM':
+                    state_delta, hidden = model(inpt, hidden)
+                else:
+                    state_delta = model(inpt)
 
-            #May need random component here to prevent overfitting
-            if threshold and i%10:
-                with torch.no_grad():
-                    mse = mse_fn(state[...,:2], true_states[...,i,:2])
-                if mse > threshold:
-                    states = torch.stack(states, -2)
-                    # sim_deltas = torch.stack(sim_deltas, 0)
-                    loss = softmax(states, true_states)
-                    return loss, 0, i
+                state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+                if self.task in ['transferA2B', 'transferB2A']: 
+                    state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
+                sim_deltas.append(state_delta)
+
+                state= state_delta + state
+
+                #May need random component here to prevent overfitting
+                if threshold and i%10:
+                    with torch.no_grad():
+                        mse = mse_fn(state[...,:2], true_states[...,i,:2])
+                    if mse > threshold:
+                        states = torch.stack(states, -2)
+                        # sim_deltas = torch.stack(sim_deltas, 0)
+                        loss = softmax(states, true_states)
+                        return loss, 0, i
 
         # sim_deltas = torch.stack(sim_deltas, 1)
-        states = torch.stack(states, -2)
+            states = torch.stack(states, -2)
         if return_states:
             return states
 
         return get_loss(loss_type, states, true_states), 1, batch.shape[-2]
 
 
+
     #------------------------------------------------------------------------------------------------------------------------------------
 
-    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise'):
+    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', degenerate=False):
         j=0
         episodes= self.episodes
         print('\nBatched trajectory training with batch size ' + str(batch_size))
@@ -281,6 +326,9 @@ class Trainer():
             batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
 
             batches = [torch.stack(batch, 0) for batch in batch_slices] 
+            if degenerate: 
+                starts = []
+                batches = [batch[:,:6,:] for batch in batches]
 
             accum = 8//batch_size
 

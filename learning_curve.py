@@ -25,7 +25,7 @@ if len(argv) > 1 and argv[1] != '_':
     nn_type = argv[1]
 if len(argv) > 2 and argv[2] != '_':
     held_out = argv[3]
-if len(argv) > 3 and argv[3] != '_' and 'transfer' in task:
+if len(argv) > 3 and argv[3] != '_':
     method = 'retrain'
     method = argv[3]
 
@@ -76,6 +76,10 @@ alpha = .4
 dtype = torch.float
 cuda = False#torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
+
+
+# held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
+held_out_list = [.99,.98,.97,.96,.95]#,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
 
 def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
     true_states = traj[:,:state_dim]
@@ -143,11 +147,9 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 #     y_mean_arr = y_mean_arr.cuda()
 #     y_std_arr = y_std_arr.cuda()
 
-def get_lc(task):
-    held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
+def get_lc(task, method='nonlinear_transform'):
     mean_max_mses = []
     mean_mses = []
-    method = 'nonlinear_transform'
     for held_out in held_out_list:
         max_mses = []
         mses = []
@@ -157,12 +159,13 @@ def get_lc(task):
         else:
             model_file =save_path+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
             # model_file =save_path+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+        print("Running " + model_file)
         with open(model_file, 'rb') as pickle_file:
-            print("Running " + model_file)
             model = torch.load(pickle_file, map_location='cpu')
 
         for test_traj in range(4):
             ground_truth = make_traj(trajectory, test_traj)
+            ground_truth = ground_truth[:len(ground_truth)]
 
             states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 
@@ -178,18 +181,22 @@ def get_lc(task):
         mean_mses.append(np.mean(mses))
     return (np.stack(mean_max_mses,0), np.stack(mean_mses,0))
 
-lc_nl_trans = get_lc('transferB2A')
+# lc_nl_trans = get_lc('transferB2A')
 lc_real_a = get_lc('real_A')
-
-held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
 
 held_out_arr = 1 - np.array(held_out_list[1:])
 
 # pdb.set_trace()
 # lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
-
+# methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform']
+methods = ['retrain', 'constrained_restart', 'constrained_retrain']
+color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow']
 plt.figure(1)
-plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
+for method, color in zip(methods, color_list):
+    lc_nl_trans = get_lc('transferB2A', method)
+    a = np.clip(lc_nl_trans[1], 0, 10**5)
+    plt.plot(held_out_arr, a[1:], color=color, label=method)
+# plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
 plt.plot(held_out_arr, lc_real_a[1][1:], color='blue', label='New model')
 # plt.axis('scaled')
 plt.title('Error by data quantity')
@@ -200,7 +207,10 @@ plt.close()
 
 
 plt.figure(1)
-plt.plot(held_out_arr, lc_nl_trans[0][1:], color='red', label='Transfer model')
+for method in methods:
+    lc_nl_trans = get_lc('transferB2A', method)
+    plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label=method)
+# plt.plot(held_out_arr, lc_nl_trans[0][1:], color='red', label='Transfer model')
 plt.plot(held_out_arr, lc_real_a[0][1:], color='blue', label='New model')
 # plt.axis('scaled')
 plt.title('Maximum divergence by data quantity')

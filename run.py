@@ -1,6 +1,7 @@
 import os
 
-methods = ['retrain', 'constrained_restart', 'constrained_restrain' 'linear_transform', 'nonlinear_transform']
+
+methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform']
 
 
 # held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
