@@ -179,7 +179,7 @@ if __name__ == "__main__":
     if nn_type == 'LSTM':
         lr = .00000175
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, opt, epochs=100, batch_size=512)
+        trainer.pretrain(model, opt, epochs=20, batch_size=512)
 
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
         # trainer.batch_train(model, opt, val_data=val_data, epochs=150, batch_size=512, degenerate=True)
@@ -206,18 +206,22 @@ if __name__ == "__main__":
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=2)
         trainer.batch_train(model, opt, out, val_data =val_data, epochs=5, batch_size=1)
 
+    elif held_out > .99:
+        lr = .0003
+        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+        trainer.pretrain(model, opt, epochs=20)
 
     elif held_out > .98:
         lr = .0003
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        # trainer.pretrain(model, opt, epochs=80)
+        trainer.pretrain(model, opt, epochs=80)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
         trainer.batch_train(model, opt, val_data=val_data, epochs=5, batch_size=16)
 
     elif held_out > .95:
         lr = .0002
-        # opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)        
-        # trainer.pretrain(model, opt, epochs=100)
+        opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)        
+        trainer.pretrain(model, opt, epochs=100)
 
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
         trainer.batch_train(model, opt, val_data=val_data, epochs=5, batch_size=16)
@@ -226,13 +230,13 @@ if __name__ == "__main__":
     elif held_out > .89: 
         lr = .0001
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001) 
-        # trainer.pretrain(model, opt, epochs=50)
+        trainer.pretrain(model, opt, epochs=100)
         # if method == 'nonlinear_transform':
         #     model.set_base_model_train(True)
         # opt = torch.optim.Adam(model.parameters(), lr=.000025, weight_decay=.001)
         # trainer.batch_train(model, opt, val_data=val_data, epochs=25, batch_size=64)
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-        trainer.batch_train(model, opt, val_data=val_data, epochs=5, batch_size=16)
+        trainer.batch_train(model, opt, val_data=val_data, epochs=10, batch_size=16)
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=25, batch_size=64)
     else:
         lr = .000025

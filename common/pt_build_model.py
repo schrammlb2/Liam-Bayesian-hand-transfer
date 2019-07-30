@@ -52,9 +52,18 @@ class LSTMNet(torch.nn.Module):
         super(LSTMNet, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-        h = 100
+        h = 50
+        self.h = h
         self.LSTM = False
         # self.l1 = torch.nn.GRU(action_dim+state_dim, state_dim, dropout = .1, batch_first = True)
+        # self.dyn = torch.nn.Sequential(
+        #         torch.nn.Linear(input_dim, h),
+        #         torch.nn.SELU(),
+        #         torch.nn.AlphaDropout(),
+        #         torch.nn.Linear(h, h),
+        #         torch.nn.SELU(),
+        #         torch.nn.AlphaDropout(),
+        #     )
         if self.LSTM:
             self.l1 = torch.nn.LSTM(input_dim, h, dropout = .1, batch_first = True, num_layers=2)
             self.l2 = torch.nn.LSTM(h, output_dim, dropout = .1, batch_first = True)
@@ -71,8 +80,8 @@ class LSTMNet(torch.nn.Module):
             inpt = inpt.unsqueeze(1)
 
 
-        m1 = torch.zeros(2, inpt.shape[0] ,100)
-        sd1 = torch.zeros(2, inpt.shape[0] ,100)
+        m1 = torch.zeros(2, inpt.shape[0] ,self.h)
+        sd1 = torch.zeros(2, inpt.shape[0] ,self.h)
 
         m2 = torch.zeros(1, inpt.shape[0] ,self.output_dim)
         sd2 = torch.zeros(1, inpt.shape[0] ,self.output_dim)
@@ -82,19 +91,21 @@ class LSTMNet(torch.nn.Module):
 
         if hidden == None:
             if self.LSTM:
-                h = (h1_distro.sample(), h2_distro.sample())
-                c = (h1_distro.sample(), h2_distro.sample())
-                hidden = (h, c)
+                hc1 = (h1_distro.sample(), h1_distro.sample())
+                hc2 = (h2_distro.sample(), h2_distro.sample())
+                hidden = (hc1, hc2)
             else:
                 hidden = (h1_distro.sample(), h2_distro.sample())
             # pdb.set_trace()
 
-        if hidden:
-            f1, h1 = self.l1(inpt, hidden[0])     
-            f2, h2 = self.l2(f1, hidden[1])
-        else:
-            f1, h1 = self.l1(inpt)     
-            f2, h2 = self.l2(f1)
+        f1, h1 = self.l1(inpt, hidden[0])    
+        # dyn = self.dyn(inpt)
+        mid = f1
+        # mid += dyn 
+        f2, h2 = self.l2(mid, hidden[1])
+        # else:
+        #     f1, h1 = self.l1(inpt)     
+        #     f2, h2 = self.l2(f1)
         out = f2.squeeze(1)# + inpt[...,:self.output_dim]# Add the starting postion memory location to the output
 
         return out, (h1,h2)
@@ -234,7 +245,6 @@ class NonlinearTransformedModel(torch.nn.Module):
               torch.nn.Tanh(),
               torch.nn.Dropout(.1),
         )
-
         self.A_model = torch.nn.Linear(h, output_dim**2)
         self.D_model = torch.nn.Linear(h, output_dim)
         self.gate = torch.nn.Sequential(
@@ -245,22 +255,25 @@ class NonlinearTransformedModel(torch.nn.Module):
         # self.rotation_matrix = np.diag(np.array([-1,-1,1,1]))
         self.rotation_matrix = np.diag(np.array([1,1,1,1]))
         self.iden = torch.autograd.Variable(torch.tensor(self.rotation_matrix, dtype = dtype))
+
+
             # Initialize transform as identity matrix
     def forward(self, inpt):
         out = self.model(inpt)#.detach()
-        return out
+        # return out
         new_inpt = torch.cat((inpt, out), dim=-1)
         feats = self.transform_model(new_inpt)
 
         D = self.D_model(feats)
         alpha = self.gate(feats)
         skip = False
-        # skip = True
+        skip = True
 
         gradient_decay = .1
 
         if skip:
-            transformed_out = (1-alpha)*out + D*alpha
+            # transformed_out = (1-alpha)*out + D*alpha
+            transformed_out = alpha*out + D
         else:
             A = self.A_model(feats)*.05
             if len(feats.shape) == 1:

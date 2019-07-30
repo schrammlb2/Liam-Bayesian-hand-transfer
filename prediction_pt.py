@@ -19,7 +19,7 @@ test_traj = 1
 bayes = False
 # _ , arg1, arg2, arg3 = argv
 nn_type = '1'
-nn_type = 'LSTM'
+# nn_type = 'LSTM'
 method = ''
 
 
@@ -67,6 +67,7 @@ dtype = torch.float
 cuda = False#torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
+mse_fn = torch.nn.MSELoss()
 
 def make_traj(trajectory, test_traj):
     real_positions = trajectory[0][test_traj]
@@ -92,50 +93,50 @@ if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
     ground_truth = make_traj(trajectory, test_traj)
 
 
-def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
+def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
     true_states = traj[:,:state_dim]
     state = traj[0][:state_dim]
     states = []#state.view(1, state_dim)
-    model.eval()
+    # model = model.eval()
 
-    # if nn_type == 'LSTM':
-    #     actions = traj[...,state_dim:state_dim+action_dim]
-    #     state = z_score_normalize(state, x_mean_arr, x_std_arr)
-    #     state_stack = state.view(1,-1).repeat(actions.shape[-2], 1)
-    #     # pdb.set_trace()
-    #     inpt = torch.cat((state_stack, actions),-1)
-    #     states, _ = model(inpt)
 
-    #     states += state_stack
-    #     states = z_score_denormalize(states, x_mean_arr, x_std_arr)
-    #     pdb.set_trace()
+    for i, point in enumerate(traj):
+        states.append(state)
+        action = point[state_dim:state_dim+action_dim]
+        # if cuda: action = action.cuda() 
+        # pdb.set_trace()   
+        inpt = torch.cat((state, action), 0)
+        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
-    hidden = None
-    if False: pass
-    else:
-        for i, point in enumerate(traj):
-            states.append(state)
-            action = point[state_dim:state_dim+action_dim]
-            # if cuda: action = action.cuda() 
-            # pdb.set_trace()   
-            inpt = torch.cat((state, action), 0)
-            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+        
+        if nn_type == 'LSTM': 
+            state_delta, hidden = model(inpt, hidden)
+            state_delta = state_delta.squeeze(0)
+        else: state_delta = model(inpt)
 
-            
-            if nn_type == 'LSTM': 
-                state_delta, hidden = model(inpt, hidden)
-                state_delta = state_delta.squeeze(0)
-            else: state_delta = model(inpt)
+        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        
+        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+        state= state_delta + state
 
-            if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-            # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-            
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-            # pdb.set_trace()
+        if threshold:
+            with torch.no_grad():
+                mse = mse_fn(state[...,:2], true_states[...,i,:2])
+            if mse > threshold:
+                states = torch.stack(states, 0)
+                return states, False, i
+        # pdb.set_trace()
 
-            state= state_delta + state
+    if threshold:
+        with torch.no_grad():
+            mse = mse_fn(state[...,:2], true_states[...,i,:2])
+        if mse > threshold:
+            states = torch.stack(states, 0)
+            return states, True, len(states)
 
-        states = torch.stack(states, 0)
+    states = torch.stack(states, 0)
+
     return states
 
 def bayes_run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
@@ -163,10 +164,25 @@ def bayes_run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr):
         display_state= display_state_delta + state
         #May need random component here to prevent overfitting
         # states = torch.cat((states,state.view(1, state_dim)), 0)
-                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])
+                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])        
+        if threshold:
+            with torch.no_grad():
+                mse = mse_fn(state[...,:2], true_states[...,i,:2])
+            if mse > threshold:
+                states = torch.stack(states, 0)
+                return states, False, i
+
+
+    if threshold:
+        with torch.no_grad():
+            mse = mse_fn(state[...,:2], true_states[...,i,:2])
+        if mse > threshold:
+            states = torch.stack(states, 0)
+            return states, True, len(states)
+
     states = torch.stack(states, 0)
     display_states = torch.stack(display_states, 0)
-    return states
+    # return states
     return display_states
 
 
@@ -195,7 +211,7 @@ if bayes:
 
 with open(model_file, 'rb') as pickle_file:
     print("Running " + model_file)
-    model = torch.load(pickle_file, map_location='cpu').eval()
+    model = torch.load(pickle_file, map_location='cpu')#.eval()
 
 
 with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
@@ -221,63 +237,118 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 
 max_mses = []
 mses = []
-for test_traj in range(4):
-    if task == 'sim_A':
-        ground_truth = make_traj_sim(trajectory)
-    else:
-        ground_truth = make_traj(trajectory, test_traj)
+threshold = None
+# if held_out > .9: 
+#     threshold = 10
+if threshold == None:
+    for test_traj in range(4):
+        if task == 'sim_A':
+            ground_truth = make_traj_sim(trajectory)
+        else:
+            ground_truth = make_traj(trajectory, test_traj)
 
-    # ground_truth = ground_truth[:len(ground_truth)//4]
-    ground_truth = ground_truth[...,:6]
+        # ground_truth = ground_truth[:len(ground_truth)//4]
+        # ground_truth = ground_truth[...,:6]
 
-    if bayes: states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
-    else: states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+        if bayes: states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+        else: states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
 
-    # if LSTM:
-    #     state = ground_truth[0, :state_dim]
-    #     actions = ground_truth[:, state_dim:2]
-    #     states = actions
+        # if LSTM:
+        #     state = ground_truth[0, :state_dim]
+        #     actions = ground_truth[:, state_dim:2]
+        #     states = actions
 
 
-    max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
-    mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
-    print('Maximum drift: ' + str(max_mse))
-    print('Average drift: ' + str(mse))
-    print('\n')
-    max_mses.append(max_mse)
-    mses.append(mse)
+        max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
+        mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
+        print('Maximum drift: ' + str(max_mse))
+        print('Average drift: ' + str(mse))
+        print('\n')
+        max_mses.append(max_mse)
+        mses.append(mse)
 
-    plt.figure(1)
-    plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-    plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
-    plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-    if bayes:
-        for i in range(4):
-            states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
-            plt.plot(states[:, 0], states[:, 1], color='red')
+        plt.figure(1)
+        plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+        plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Ground Truth', marker='.')
+        plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+        if bayes:
+            for i in range(4):
+                states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+                plt.plot(states[:, 0], states[:, 1], color='red')
 
-    plt.axis('scaled')
-    plt.title('NN Prediction -- pos Space')
-    plt.legend()
+        plt.axis('scaled')
+        plt.title('NN Prediction -- pos Space')
+        plt.legend()
 
-    fig_loc = '/home/liam/results/recurrent_network_results/'
-    if 'transfer' in task: 
-        # method = 
-        fig_loc += 'transfer/'
-        fig_loc += method + '/'
-    if task == 'real_B':
-        task_str = 'real_b'
-    elif task == 'real_A':
-        task_str = 'real_a'
-    else: task_str = task
+        fig_loc = '/home/liam/results/recurrent_network_results/'
+        if 'transfer' in task: 
+            # method = 
+            fig_loc += 'transfer/'
+            fig_loc += method + '/'
+        if task == 'real_B':
+            task_str = 'real_b'
+        elif task == 'real_A':
+            task_str = 'real_a'
+        else: task_str = task
 
-    fig_loc += task_str + '_pretrain_batch/'
-    fig_loc += 'traj' + str(test_traj) + '.png'
+        fig_loc += task_str + '_pretrain_batch/'
+        fig_loc += 'traj' + str(test_traj) + '.png'
 
-    # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
-    if bayes:
-        fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
-    # plt.savefig(fig_loc)
-    # plt.close()
-    plt.show()
+        # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
+        if bayes:
+            fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
+        # plt.savefig(fig_loc)
+        # plt.close()
+        plt.show()
 
+else: 
+
+    for test_traj in range(4):
+        if task == 'sim_A':
+            ground_truth = make_traj_sim(trajectory)
+        else:
+            ground_truth = make_traj(trajectory, test_traj)
+
+        # ground_truth = ground_truth[:len(ground_truth)//4]
+        # ground_truth = ground_truth[...,:6]
+
+        if bayes: 
+            states, finished, duration = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=20)
+        else: 
+            states, finished, duration = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=20)
+        states = states.detach().numpy()
+
+
+        plt.figure(1)
+        plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+        plt.plot(ground_truth[:len(states), 0], ground_truth[:len(states), 1], color='blue', label='Ground Truth', marker='.')
+        plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+        if bayes:
+            for i in range(4):
+                states = bayes_run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+                plt.plot(states[:, 0], states[:, 1], color='red')
+
+        plt.axis('scaled')
+        plt.title('Duration: ' + str(duration) + '.\nFinished: ' + str(finished))
+        plt.legend()
+
+        fig_loc = '/home/liam/results/recurrent_network_results/'
+        if 'transfer' in task: 
+            # method = 
+            fig_loc += 'transfer/'
+            fig_loc += method + '/'
+        if task == 'real_B':
+            task_str = 'real_b'
+        elif task == 'real_A':
+            task_str = 'real_a'
+        else: task_str = task
+
+        fig_loc += task_str + '_pretrain_batch/'
+        fig_loc += 'traj' + str(test_traj) + '.png'
+
+        # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
+        if bayes:
+            fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
+        # plt.savefig(fig_loc)
+        # plt.close()
+        plt.show()
