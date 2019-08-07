@@ -14,27 +14,6 @@ cuda = False
 dtype = torch.float
 
 
-def weight_norm(model):
-    total_norm = 0
-    for p in model.parameters():
-        param_norm = p.data.norm(2)
-        total_norm += param_norm.item()**2
-    return total_norm**(.5)
-    return 
-
-def grad_norm(model):
-    # return 0
-    total_norm = 0
-    for p in model.parameters():
-        if p.requires_grad:
-            try: 
-                param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item()**2
-            except: 
-                pass
-    return total_norm**(.5)
-
-
 def clean_data(episodes):
     DATA = np.concatenate(episodes)
     yd_pos = DATA[:, -4:-2] - DATA[:, :2]
@@ -66,16 +45,23 @@ def softmax(states, true_states):
     loss = torch.mean(loss) #Sum over batch
     return loss
 
-def pointwise(states, true_states):
-    mse_fn = torch.nn.MSELoss(reduction='none')
-    scaling = 1/((torch.arange(states.shape[1], dtype=torch.float)+1))
-    if cuda: scaling = scaling.cuda()
-    loss_temp = mse_fn(states[...,:,:2], true_states[...,:states.shape[-2],:2])
-    loss = torch.einsum('...kj,k->', [loss_temp, scaling])/loss_temp.numel()
-    return loss
+def pointwise(states, true_states, scaling = True):
+    if scaling:
+        mse_fn = torch.nn.MSELoss(reduction='none')
+        scaling = 1/((torch.arange(states.shape[1]-1, dtype=torch.float)+1))
+        if cuda: scaling = scaling.cuda()
+        loss_temp = mse_fn(states[...,1:,:2], true_states[...,1:states.shape[-2],:2])
+        loss_temp += mse_fn(states[...,1:,2:4], true_states[...,1:states.shape[-2],2:4])*.1
+        loss = torch.einsum('...kj,k->', [loss_temp, scaling])/loss_temp.numel()
+        return loss
+    else: 
+        mse_fn = torch.nn.MSELoss()
+        return mse_fn(states[...,1:,:2], true_states[...,1:states.shape[-2],:2])
 
 
-class Trainer():
+#--------------------------------------------------------------------------------------------------------------------
+
+class TrajModelTrainer():
     def __init__(self, task, episodes,  method=None, save=True, model_save_path=None, save_path = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None, nn_type=None):
         self.task_ofs = task_ofs
         self.state_dim = state_dim
@@ -93,12 +79,7 @@ class Trainer():
         self.x_data, self.y_data = data
         self.episodes = episodes
         self.nn_type= nn_type
-        # if reg_loss == None:
-        #     self.reg_loss = lambda m: 0
-        #     self.reg_loss = False
-        # else:
         self.reg_loss = reg_loss        
-
 
 
 
@@ -145,7 +126,6 @@ class Trainer():
             torch.save(model, pickle_file)
 
 
-
     def get_norms(self, episodes):
         DATA = np.concatenate(episodes)
         FULL_DATA = np.concatenate(episodes)
@@ -160,9 +140,11 @@ class Trainer():
         x_mean_arr = np.mean(x_data, axis=0)
         x_std_arr = np.std(x_data, axis=0)
 
-        x_mean_arr = np.concatenate((x_mean_arr[:self.state_dim], np.array([0,0]), x_mean_arr[:self.state_dim]))
-        x_std_arr = np.concatenate((x_std_arr[:self.state_dim], np.array([1,1]), x_std_arr[:self.state_dim]))
-        # x_std_arr = np.std(x_data, axis=0)
+        x_mean_arr = np.concatenate((x_mean_arr[:self.state_dim], np.array([0,0]), x_mean_arr[-self.state_dim:]))
+        x_std_arr = np.concatenate((x_std_arr[:self.state_dim], np.array([1,1]), x_std_arr[-self.state_dim:]))
+        # x_mean_arr[self.state_dim:-self.state_dim] *= 0
+        # x_std_arr[self.state_dim:-self.state_dim] *= 0
+        # x_std_arr[self.state_dim:-self.state_dim] += 1
 
         y_mean_arr = np.mean(y_data, axis=0)
         y_std_arr = np.std(y_data, axis=0)
@@ -190,123 +172,8 @@ class Trainer():
         return (x_mean_arr, x_std_arr, y_mean_arr, y_std_arr), (x_data, y_data)
 
 
-    def visualize(self, model,  episode):
-        states = self.run_traj_batch(model, episode, threshold = None, return_states=True)
 
-        episode = episode.detach().numpy()
-        states = states.detach().numpy()
-
-        plt.figure(1)
-        plt.scatter(episode[...,0, 0], episode[..., 0, 1], marker="*", label='start')
-        plt.plot(episode[...,:, 0], episode[..., :, 1], color='blue', label='Ground Truth', marker='.')
-        plt.plot(states[..., :, 0], states[ ...,:, 1], color='red', label='NN Prediction')
-        plt.axis('scaled')
-        plt.title('Bayesian NN Prediction -- pos Space')
-        plt.legend()
-        plt.show()
-
-
-    def run_traj_batch(self, model, batch, threshold = 50, return_states = False, 
-        loss_type = 'softmax', alpha = .5):
-        if len(batch.shape) == 2:
-            batch = batch.unsqueeze(0)
-        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
-        true_states = batch[...,:,:self.state_dim]
-        state = batch[...,0,:self.state_dim]
-        states = []#state.view(1, self.state_dim)
-        sim_deltas = []
-        if cuda:
-            state = state.cuda()
-            true_states = true_states.cuda()
-
-        mse_fn = torch.nn.MSELoss()
-
-        def get_loss(loss_type, states, true_states):
-            if loss_type in ['soft maximum', 'softmax']:
-                loss = softmax(states, true_states)
-
-            elif loss_type == 'mix':
-                loss= pointwise(states, true_states)
-                alpha = .9
-                loss*= alpha
-                loss += softmax(states, true_states)*(1-alpha)
-                return loss
-
-            elif loss_type == 'pointwise':
-                loss= pointwise(states, true_states)
-
-            return loss
-
-        if False:#self.nn_type == 'LSTM':
-            actions = batch[...,self.state_dim:self.state_dim+self.action_dim]
-            data = state
-            # state = (data- x_mean_arr[:data.shape[-1]]) / x_std_arr[:data.shape[-1]]
-            state = z_score_normalize(state, x_mean_arr, x_std_arr)
-            state_stack = state.unsqueeze(0).transpose(0,1).repeat(1, actions.shape[-2], 1)
-            # pdb.set_trace()
-            inpt = torch.cat((state_stack, actions),-1)
-            states, _  = model(inpt)
-            # pdb.set_trace()
-            # states = model(state, actions)
-            # states = z_score_denormalize(states, x_mean_arr, x_std_arr)
-            if True:#batch.shape[-2] < 30:
-                sim_deltas = states[:,1:,:] - states[:,:-1,:]
-                state_deltas = batch[:,1:,:self.state_dim] - batch[:,:-1,:self.state_dim]
-                state_deltas = z_score_normalize(state_deltas, y_mean_arr, y_std_arr)
-                pdb.set_trace()
-                loss = mse_fn(sim_deltas, state_deltas)
-                return loss, 1, batch.shape[-2]
-            else:
-                states += state_stack
-                states = z_score_denormalize(states, y_mean_arr, y_std_arr) 
-
-            data = states
-            states = states * x_std_arr[:data.shape[-1]] + x_mean_arr[:data.shape[-1]]
-
-        else:
-            hidden= None
-            for i in range(batch.shape[1]):
-                states.append(state)
-                action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
-                if cuda: action = action.cuda() 
-                inpt = torch.cat((state, action), -1)
-                inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
-
-                if self.nn_type == 'LSTM':
-                    state_delta, hidden = model(inpt, hidden)
-                else:
-                    state_delta = model(inpt)
-
-                state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-                if self.task in ['transferA2B', 'transferB2A']: 
-                    state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
-                sim_deltas.append(state_delta)
-
-                state= state_delta + state
-
-                #May need random component here to prevent overfitting
-                if threshold and i%10:
-                    with torch.no_grad():
-                        mse = mse_fn(state[...,:2], true_states[...,i,:2])
-                    if mse > threshold:
-                        states = torch.stack(states, -2)
-                        # sim_deltas = torch.stack(sim_deltas, 0)
-                        loss = softmax(states, true_states)
-                        return loss, 0, i
-
-        # sim_deltas = torch.stack(sim_deltas, 1)
-            states = torch.stack(states, -2)
-        if return_states:
-            return states
-        # pdb.set_trace()
-
-        return get_loss(loss_type, states, true_states), 1, batch.shape[-2]
-
-
-
-    #------------------------------------------------------------------------------------------------------------------------------------
-
-    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', degenerate=False):
+    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', sub_chance = 0.0):
         j=0
         episodes= self.episodes
         print('\nBatched trajectory training with batch size ' + str(batch_size))
@@ -332,26 +199,29 @@ class Trainer():
             batch_slices = [[episode[start:start+length] for episode, start in zip(batch, starts)] for batch, starts, length in zip(batch_lists, rand_starts, min_lengths)]
 
             batches = [torch.stack(batch, 0) for batch in batch_slices] 
-            if degenerate: 
-                starts = []
-                batches = [batch[:,:6,:] for batch in batches]
 
             accum = 8//batch_size
 
-            for i, batch in enumerate(batches):
-                if accum == 0 or j % accum ==0: opt.zero_grad()
+            for i, batch in enumerate(batches): 
+                if accum == 0 or j % accum ==0: 
+                    opt.zero_grad()
 
                 j += 1
-                loss, completed, dist = self.run_traj_batch(model, batch, threshold = thresh, loss_type=loss_type)
+
+                states = model.run_traj(batch, threshold = thresh, sub_chance=sub_chance)
+
+
+                loss = pointwise(states, batch)
+                completed = (states.shape[-2] == batch.shape[-2])
+                dist = states.shape[-2]
                 total_loss += loss.data
                 total_completed += completed
                 total_distance += dist               
 
+                # pdb.set_trace()
                 loss.backward()
                 if accum == 0 or j % accum ==0:
                     if self.reg_loss: loss += self.reg_loss(model)
-
-                    grad_norms.append(grad_norm(model))
 
                     torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
                     opt.step()
@@ -361,26 +231,26 @@ class Trainer():
                 total_completed = 0
                 total_distance = 0
                 for i, episode in enumerate(val_data[:len(val_data)//2]):
-                    _ , completed, dist = self.run_traj_batch(model, episode, threshold = 50)
+                    states = model.run_traj(episode, threshold = thresh)
+                    completed = (states.shape[-2] == episode.shape[-2])
+                    dist = states.shape[-2]
                     total_completed += completed
                     total_distance += dist
 
                 for i, episode in enumerate(val_data[len(val_data)//2:]):
-                    val_loss, completed, dist = self.run_traj_batch(model, episode, threshold = None)
+                    states = model.run_traj(episode, threshold = None)
+                    val_loss = softmax(states, episode)
                     total_loss += val_loss.data
                 print('Loss: ' + str(total_loss/(len(val_data)/2)))
                 print('completed: ' + str(total_completed/(len(val_data)/2)))
                 print('Average time before divergence: ' + str(total_distance/(len(val_data)/2)))
 
                 episode = random.choice(val_data)
-                # self.visualize(model, episode)
-
 
             else:
                 print('Loss: ' + str(total_loss/len(batches)))
                 print('completed: ' + str(total_completed/len(batches)))
                 print('Average time before divergence: ' + str(total_distance/len(batches)))
 
-            # if self.save:
             with open(self.model_save_path, 'wb') as pickle_file:
                 torch.save(model, pickle_file)

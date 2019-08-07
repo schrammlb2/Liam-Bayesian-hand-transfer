@@ -103,10 +103,14 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
     for i, point in enumerate(traj):
         states.append(state)
         action = point[state_dim:state_dim+action_dim]
+        if task in ['transferA2B', 'transferB2A']: action*= torch.tensor(np.array([-1,-1,1,1,1,1]),dtype=torch.float)
         # if cuda: action = action.cuda() 
         # pdb.set_trace()   
         inpt = torch.cat((state, action), 0)
         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+        # inpt = z_score_norm_single(state, x_mean_arr, x_std_arr)
+        # inpt = torch.cat((inpt, action), 0)
+        # pdb.set_trace()
 
         
         if nn_type == 'LSTM': 
@@ -114,7 +118,7 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
             state_delta = state_delta.squeeze(0)
         else: state_delta = model(inpt)
 
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        # if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
         
         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
@@ -208,6 +212,7 @@ if bayes:
 
 # model_file = 'save_model/robotic_hand_simulator/pytorch/'+task+'_heldout' + str(held_out) + '_1.pkl'
 
+# model_file = save_path + 'real_' + task[-3] + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
 
 with open(model_file, 'rb') as pickle_file:
     print("Running " + model_file)

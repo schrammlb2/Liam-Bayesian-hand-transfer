@@ -102,9 +102,19 @@ for system in systems:
 
 min_len = min([len(d) for d in datasets])
 
-valid = [np.isclose(datasets[0][:min_len,:6], np.roll(datasets[1][:min_len,:6], i, axis=0), atol=.075).all(axis=-1) for i in range(6000)]
-valid = np.stack(valid, 0)
-# pdb.set_trace()
+datasets[1][:, 4:6] *= -1 
+
+datasubsets = [datasets[0][:min_len], datasets[1][:min_len]]
+
+# close = [np.isclose(datasets[0][:min_len,:6], np.roll(datasets[1][:min_len,:6], i, axis=0), atol=.12) for i in range(1000)]
+close = [np.isclose(datasubsets[0][:,:6], np.roll(datasubsets[1][:,:6], i, axis=0), atol=.075) for i in range(6000)]
+close = np.stack(close, 0)
+valid1 = (np.sum(close, -1) == 6)
+valid2 = close.all(-1)
+
+# valid = np.stack(valid2, 0)
+valid=valid2
+pdb.set_trace()
 if np.sum(valid) == 0:
     print('No points close enough')
     pdb.set_trace()
@@ -145,6 +155,8 @@ def find_nearest(value, array):
 
 plotted_locs = []
 
+a_plot = []
+b_plot = []
 for location in high_density_locations[:,0]:
     if location in plotted_locs: 
         continue
@@ -152,32 +164,42 @@ for location in high_density_locations[:,0]:
     # pdb.set_trace()
     plotted_locs += neighborhood[:,0].tolist()
 
-    A_locs = neighborhood[...,1]
-    B_locs = neighborhood[...,1] + neighborhood[...,0]
+    # A_locs = neighborhood[...,1]
+    # B_locs = neighborhood[...,1] + neighborhood[...,0]
     
-    A_points = datasets[0][A_locs, :]
-    B_points = datasets[1][B_locs, :]
-
+    A_points = datasubsets[0][neighborhood[...,1], :]
+    # B_points = np.roll(datasubsets[1], neighborhood[...,1]
+    bp= []
+    for point in neighborhood:
+        b_point = np.roll(datasubsets[1], point[0])[point[1]]
+        bp.append(b_point)
+    B_points = np.stack(bp,0)
     # pdb.set_trace()
+    # all_pairs = []
+    # for point in A_points:
+    #     # pair = [point, find_nearest(point, B_points)]
+    #     pair = [point, find_nearest(point, datasubsets[1])]
+    #     all_pairs.append(np.stack(pair, 0))
+    # all_pairs = np.stack(all_pairs, 0)
+    a_plot.append(A_points)
+    b_plot.append(B_points)
 
-    for j in range(4):
-        all_pairs = []
-        for point in A_points:
-            pair = [point, find_nearest(point, B_points)]
-            all_pairs.append(np.stack(pair, 0))
-        all_pairs = np.stack(all_pairs, 0)
-        pdb.set_trace()
+A_points = torch.cat(a_plot, dim=0)
+B_points = torch.cat(b_plot, dim=0)
 
-        name = '/home/liam/results/recurrent_network_results/hand_comparison/y_predict' + str(location) + '_' + str(j)
-        plt.figure(1)
-        # plt.scatter(all_pairs[:, 0, j], all_pairs[:, 1, j], marker='.')
-        # plt.scatter(all_pairs[:, 0, -(4-j)], all_pairs[:, 1, -(4-j)], marker='.')
+for j in range(4):
+    pdb.set_trace()
 
-        # plt.scatter(A_points[..., j], B_points[..., j], marker='.')
-        plt.scatter(A_points[..., -(4-j)], B_points[..., -(4-j)], marker='.')
-        plt.title('location' + str(location) + ', ' + title_dict[j])
-        plt.legend()
-        plt.savefig(name)
-        # plt.show()
+    name = '/home/liam/results/recurrent_network_results/hand_comparison/y_predict' + str(location) + '_' + str(j)
+    plt.figure(1)
+    # plt.scatter(all_pairs[:, 0, j], all_pairs[:, 1, j], marker='.')
+    # plt.scatter(all_pairs[:, 0, -(4-j)], all_pairs[:, 1, -(4-j)], marker='.')
 
-        plt.close()
+    # plt.scatter(A_points[..., j], B_points[..., j], marker='.')
+    plt.scatter(A_points[..., -(4-j)], B_points[..., -(4-j)], marker='.')
+    plt.title('location' + str(location) + ', ' + title_dict[j])
+    plt.legend()
+    plt.savefig(name)
+    # plt.show()
+
+    plt.close()

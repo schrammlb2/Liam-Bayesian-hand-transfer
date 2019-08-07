@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from sys import argv
 
-task = 'sim_A' #Which task we're training. This tells us what file to use
+task = 'real_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
 held_out = .1
@@ -32,6 +32,7 @@ if len(argv) > 2 and argv[2] != '_':
 if len(argv) > 3 and argv[3] != '_':
     nn_type = argv[3]
 
+print(task)
 assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B']
 
 
@@ -241,7 +242,7 @@ if __name__ == "__main__":
     else:
         lr = .000025
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(model, opt, epochs=150, batch_size=256)
+        # trainer.pretrain(model, opt, epochs=150, batch_size=256)
         # trainer.pretrain(model, x_data, y_data, opt, epochs=10, train_load=True, batch_size=256)
         # if task == 'real_A': trainer.pretrain(model, x_data, y_data, opt, epochs=70, train_load=True, batch_size=256)
         # if task == 'real_B': trainer.pretrain(model, x_data, y_data, opt, epochs=150, train_load=True, batch_size=256)
@@ -253,9 +254,9 @@ if __name__ == "__main__":
         trainer.batch_train(model, opt, val_data=val_data, epochs=70, batch_size=64)
         trainer.batch_train(model, opt, val_data=val_data, epochs=50, batch_size=16)
         trainer.batch_train(model, opt, val_data=val_data, epochs=30, batch_size=8)
-        trainer.batch_train(model, opt, val_data=val_data, epochs=20, batch_size=4)
+        trainer.batch_train(model, opt, val_data=val_data, epochs=40, batch_size=4)
         trainer.batch_train(model, opt, val_data=val_data, epochs=20, batch_size=2)
-        trainer.batch_train(model, opt, val_data=val_data, epochs=20, batch_size=1)
+        # trainer.batch_train(model, opt, val_data=val_data, epochs=20, batch_size=1)
 
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=256)
         # trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
