@@ -166,6 +166,21 @@ print('\t' + model_save_path)
 # pdb.set_trace()
 
 
+with open(save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
+    x_norm_arr, y_norm_arr = pickle.load(pickle_file)
+
+x_mean_arr, x_std_arr = x_norm_arr[0], x_norm_arr[1]
+y_mean_arr, y_std_arr = y_norm_arr[0], y_norm_arr[1]
+
+# x_mean_arr = torch.tensor(x_mean_arr)
+# x_std_arr = torch.tensor(x_std_arr)
+# y_mean_arr = torch.tensor(y_mean_arr)
+# y_std_arr = torch.tensor(y_std_arr)
+x_mean_arr = torch.tensor(x_mean_arr, dtype=dtype)
+x_std_arr = torch.tensor(x_std_arr, dtype=dtype)
+y_mean_arr = torch.tensor(y_mean_arr, dtype=dtype)
+y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
+
 
 if __name__ == "__main__":
     np.random.shuffle(out)
@@ -222,7 +237,7 @@ if __name__ == "__main__":
     elif held_out > .95:
         lr = .0002
         opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)        
-        trainer.pretrain(model, opt, epochs=100)
+        trainer.pretrain(model, opt, epochs=20)
 
         opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
         trainer.batch_train(model, opt, val_data=val_data, epochs=5, batch_size=16)

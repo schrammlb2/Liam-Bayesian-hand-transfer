@@ -10,10 +10,12 @@ dtype = torch.float
 cuda = False
 
 class ResBlock(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, coeff = .1):
+        super(ResBlock, self).__init__()
         self.model = model
+        self.coeff = coeff
     def forward(self, x):
-        return x + self.model(x)
+        return x + self.model(x)*self.coeff
 
 class TrajNet(torch.nn.Module):
     def __init__(self, task, norms, model = None ,state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
@@ -21,8 +23,7 @@ class TrajNet(torch.nn.Module):
         self.task_ofs = task_ofs
         self.state_dim = state_dim
         self.task = task
-        # self.action_dim = action_dim
-        self.action_dim = 2
+        self.action_dim = action_dim
         self.dtype = torch.float
         self.cuda = cuda
 
@@ -50,6 +51,8 @@ class TrajNet(torch.nn.Module):
         for i in range(batch.shape[1]):
             states.append(state)
             action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
+            if self.task in ['transferA2B', 'transferB2A']: 
+                action[...,:2]*= -1
             if cuda: action = action.cuda() 
             inpt = torch.cat((state, action), -1)
             inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
@@ -57,8 +60,6 @@ class TrajNet(torch.nn.Module):
             state_delta = self.model(inpt)
 
             state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-            if self.task in ['transferA2B', 'transferB2A']: 
-                state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
             sim_deltas.append(state_delta)
 
             state= state_delta + state
@@ -129,12 +130,13 @@ class LSTMStateTrajNet(torch.nn.Module):
                 hidden = (hc1, hc2)
             else:
                 # self.prediction = 'delta'
-                if self.prediction == 'state':
-                    hidden = (h1_distro.sample(), inpt.transpose(0,1)[:1,:,:self.state_dim])
-                elif self.prediction == 'delta':
-                    hidden = (h1_distro.sample(), h2_distro.sample())
-                else:
-                    pdb.set_trace()
+                # if self.prediction == 'state':
+                #     hidden = (h1_distro.sample(), inpt.transpose(0,1)[:1,:,:self.state_dim])
+                # elif self.prediction == 'delta':
+                #     hidden = (h1_distro.sample(), h2_distro.sample())
+                # else:
+                #     pdb.set_trace()
+                hidden = (h1_distro.sample(), h2_distro.sample()*0)
 
         f1, h1 = self.l1(inpt, hidden[0])    
         # dyn = self.dyn(inpt)
@@ -198,8 +200,6 @@ class LSTMTrajNet(LSTMStateTrajNet):
 
             state_delta, hidden = self.forward(inpt, hidden)
 
-            state_delta += self.model(inpt)
-
             state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
             if self.task in ['transferA2B', 'transferB2A']: 
                 state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
@@ -221,11 +221,6 @@ class LSTMTrajNet(LSTMStateTrajNet):
             states=states.squeeze(0)
         return states
 
-    def forward(self, inpt, hidden=None):
-        if hidden:
-            return super(LSTMTrajNet, self).forward(inpt, hidden)
-        else: 
-            return self.model(inpt)
 
 
 
@@ -306,7 +301,7 @@ class NBackNet(torch.nn.Module):
 
 
 class LatentNet(torch.nn.Module):
-    def __init__(self, task, norms, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
+    def __init__(self, task, norms, model = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
         super(LatentNet, self).__init__()
         self.task_ofs = task_ofs
         self.state_dim = state_dim
@@ -317,21 +312,35 @@ class LatentNet(torch.nn.Module):
         self.norm = norms
         self.reg_loss = reg_loss   
         self.internal_state_dim = state_dim
-        self.model = TrajNet(task, norms)
-        self.encoder = ResBlock(pt_build_model('1', state_dim, state_dim, dropout_p=.1))
-        self.decoder = ResBlock(pt_build_model('1', state_dim, state_dim, dropout_p=.1))
+        if model:
+            self.model = model
+            for param in self.model.parameters():
+                param.requires_grad = False
+        else:
+            self.model = TrajNet(task, norms)
+
+        if model.task[-1] == 'A':
+            model.task = 'transferA2B'
+        else:
+            model.task = 'transferB2A'
+        # self.encoder = ResBlock(pt_build_model('1', state_dim+action_dim, state_dim+action_dim, dropout_p=.1))
+        # self.decoder = ResBlock(pt_build_model('1', state_dim, state_dim, dropout_p=.1))
+
+        self.encoder = ResBlock(LSTMStateTrajNet(task,norms,state_dim=state_dim+action_dim, action_dim=0))
+        self.decoder = ResBlock(LSTMStateTrajNet(task,norms,state_dim=state_dim, action_dim=0))
 
 
     def run_traj(self, batch, threshold = 50, sub_chance=0.0):
         true_states = batch[...,:,:self.state_dim]
         actions = batch[...,:,self.state_dim:self.state_dim+self.action_dim]
 
-        encoded_true_states = self.encoder(true_states)
+        # encoded_true_states = self.encoder(true_states)
 
-        pass_batch = torch.cat([encoded_true_states, actions], -1)
-        projected_states = self.model(encoded_true_states, threshold=threshold, sub_chance=sub_chance)
+        # pass_batch = torch.cat([encoded_true_states, actions], -1)
+        pass_batch = self.encoder(batch[...,:self.state_dim+self.action_dim])
+        projected_states = self.model.run_traj(pass_batch, threshold=threshold, sub_chance=sub_chance)
+        states = self.decoder(projected_states)
 
-        states = torch.stack(states, -2)
         return states
 
     def forward(self, x):

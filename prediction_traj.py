@@ -36,7 +36,6 @@ if len(argv) > 4 and argv[4] != '_':
 # assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 
 
-
 save_path = 'save_model/robotic_hand_real/pytorch/'
 
 # model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
@@ -95,27 +94,25 @@ if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
 
 # task  = 'transferB2A_traj_transfer'
 
-# model_file = save_path+task + '_' + nn_type + '.pkl'
+model_file = save_path+task + '_' + nn_type + '.pkl'
 
-# if len(argv) > 2 and argv[2] != '_': 
-#     if 'real' in task: model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
-#     if task == 'transferB2A': model_file = save_path+task + '_nonlinear_transform_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
-
-# if method != '': 
-#     model_file = save_path+task + '_' + method + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
-#     # if method == 'constrained_restart':
-#     #     if len(argv) > 5:
-#     #         l2_coeff = argv[5]
-#     #         model_file = save_path+task + '_' + method + '_' + str(float(l2_coeff))  + '_' + nn_type+ '.pkl'
-#     #     else:
-#     #         model_file = save_path+task + '_'  + nn_type + '.pkl'
+if 'real' in task: 
+    model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
+if 'transfer' in task: 
+    print('method = ' + method)
+    if method == '':
+        model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
+    elif method == 'direct':
+        model_file = save_path + 'real_' + task[-3] + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
+    else:
+        model_file = save_path+task + '_' + method + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
 
 
 # if bayes:
 #     model_file = model_file[:-4] + '_bayesian.pkl'
 
 # model_file = 'save_model/robotic_hand_real/pytorch/transferB2A_traj_transfer_heldout0.1_1.pkl'
-model_file = 'save_model/robotic_hand_real/pytorch/real_A_heldout0.1_1.pkl'
+# model_file = 'save_model/robotic_hand_real/pytorch/real_A_heldout0.1_1.pkl'
 
 # model_file = save_path + 'real_' + task[-3] + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
 
@@ -157,6 +154,8 @@ for test_traj in range(4):
 
     # ground_truth = ground_truth[:len(ground_truth)//4]
     # ground_truth = ground_truth[...,:6]
+    if method == 'direct':
+        model.task = 'transferA2B'
 
     states = model.run_traj(torch.tensor(ground_truth, dtype=dtype), threshold=threshold)
     states = states.squeeze(0)

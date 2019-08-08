@@ -169,9 +169,15 @@ class Trainer():
 
         x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
         y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
-        if self.save_path:
-            with open(self.save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
-                pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
+        if 'transfer' not in self.task:
+            if self.save_path:
+                with open(self.save_path+'/normalization_arr/normalization_arr', 'wb') as pickle_file:
+                    pickle.dump(((x_mean_arr, x_std_arr),(y_mean_arr, y_std_arr)), pickle_file)
+        else: 
+            with open(self.save_path+'/normalization_arr/normalization_arr', 'rb') as pickle_file:
+                x_norm_arr, y_norm_arr = pickle.load(pickle_file)
+                x_mean_arr, x_std_arr = x_norm_arr[0], x_norm_arr[1]
+                y_mean_arr, y_std_arr = y_norm_arr[0], y_norm_arr[1]
 
         x_data = torch.tensor(x_data, dtype=self.dtype)
         y_data = torch.tensor(y_data, dtype=self.dtype)
@@ -269,6 +275,8 @@ class Trainer():
                 states.append(state)
                 action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
                 if cuda: action = action.cuda() 
+                if self.task in ['transferA2B', 'transferB2A']: 
+                    action[...,:2] *= -1
                 inpt = torch.cat((state, action), -1)
                 inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
 
@@ -278,8 +286,8 @@ class Trainer():
                     state_delta = model(inpt)
 
                 state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-                if self.task in ['transferA2B', 'transferB2A']: 
-                    state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
+                # if self.task in ['transferA2B', 'transferB2A']: 
+                #     state_delta *= torch.tensor([-1,-1,1,1], dtype=torch.float)
                 sim_deltas.append(state_delta)
 
                 state= state_delta + state
