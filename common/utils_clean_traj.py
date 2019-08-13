@@ -45,7 +45,7 @@ def softmax(states, true_states):
     loss = torch.mean(loss) #Sum over batch
     return loss
 
-def pointwise(states, true_states, scaling = True):
+def pointwise(states, true_states, scaling = False):
     if scaling:
         mse_fn = torch.nn.MSELoss(reduction='none')
         scaling = 1/((torch.arange(states.shape[1]-1, dtype=torch.float)+1))
@@ -56,13 +56,14 @@ def pointwise(states, true_states, scaling = True):
         return loss
     else: 
         mse_fn = torch.nn.MSELoss()
-        return mse_fn(states[...,1:,:2], true_states[...,1:states.shape[-2],:2])
+        return mse_fn(states[...,:,:2], true_states[...,:states.shape[-2],:2])
 
 
 #--------------------------------------------------------------------------------------------------------------------
 
 class TrajModelTrainer():
-    def __init__(self, task, episodes,  method=None, save=True, model_save_path=None, save_path = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None, nn_type=None):
+    def __init__(self, task, episodes,  method=None, save=True, model_save_path=None, save_path = None, state_dim = 4, 
+            action_dim = 6, task_ofs = 10, reg_loss = None, nn_type=None, held_out = .1):
         self.task_ofs = task_ofs
         self.state_dim = state_dim
         self.new_state_dim = state_dim
@@ -74,16 +75,19 @@ class TrajModelTrainer():
         self.model_save_path = model_save_path
         self.dtype = torch.float
         self.cuda = cuda
+        self.held_out = held_out
 
-        self.norm, data = self.get_norms(episodes)
+        self.norm, data, self.episodes= self.get_norms(episodes, held_out)
         self.x_data, self.y_data = data
-        self.episodes = episodes
         self.nn_type= nn_type
         self.reg_loss = reg_loss        
 
 
 
     def pretrain(self, model, opt, train_load = True, epochs = 30, batch_size = 64):
+        if cuda: 
+            self.x_data=self.x_data.to('cuda')
+            self.y_data=self.y_data.to('cuda')
         dataset = torch.utils.data.TensorDataset(self.x_data, self.y_data)
         loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         loss_fn = torch.nn.MSELoss()
@@ -95,12 +99,9 @@ class TrajModelTrainer():
             for batch_ndx, sample in enumerate(loader):
                 opt.zero_grad()
 
-                if cuda:
-                    sample[0]  = sample[0].cuda()
-                    sample[1]  = sample[1].cuda()
-
                 if self.nn_type == 'LSTM':
-                    output, hidden = model(sample[0])
+                    # output, hidden = model(sample[0])
+                    output = model(sample[0])
 
                     # output = output - sample[0][...,:self.state_dim]
                     # output = z_score_denormalize(output, x_mean_arr, x_mean_arr)
@@ -126,9 +127,34 @@ class TrajModelTrainer():
             torch.save(model, pickle_file)
 
 
-    def get_norms(self, episodes):
+    def visualize(self, model,  episode):
+        if isinstance(episode, list):
+            [visualize(model, ep) for ep in episode]
+        states = model.run_traj(episode)
+
+        episode = episode.cpu().detach().numpy()
+        states = states.cpu().detach().numpy()
+        # pdb.set_trace()
+
+        plt.figure(1)
+        plt.plot(episode[..., 0], episode[..., 1], color='blue', label='Ground Truth', marker='.')
+        plt.plot(states[..., 0], states[ ..., 1], color='red', label='NN Prediction')
+        plt.axis('scaled')
+        plt.legend()
+        plt.show()
+
+
+    def get_norms(self, episodes, held_out):
+        full_dataset = episodes
+
+        val_size = int(len(episodes)*held_out)
+
+        val_data = episodes[-val_size:]
+        val_data = val_data[:min(10, len(val_data))]
+        episodes = episodes[:-val_size]
+
         DATA = np.concatenate(episodes)
-        FULL_DATA = np.concatenate(episodes)
+        FULL_DATA = np.concatenate(full_dataset)
 
         x_data = DATA[:, :self.task_ofs]
         y_data = DATA[:, -self.new_state_dim:] - DATA[:, :self.new_state_dim]
@@ -137,8 +163,8 @@ class TrajModelTrainer():
         full_x_data = FULL_DATA[:, :self.task_ofs]
         full_y_data = FULL_DATA[:, -self.new_state_dim:] - FULL_DATA[:, :self.new_state_dim]
 
-        x_mean_arr = np.mean(x_data, axis=0)
-        x_std_arr = np.std(x_data, axis=0)
+        x_mean_arr = np.mean(full_x_data, axis=0)
+        x_std_arr = np.std(full_x_data, axis=0)
 
         x_mean_arr = np.concatenate((x_mean_arr[:self.state_dim], np.array([0,0]), x_mean_arr[-self.state_dim:]))
         x_std_arr = np.concatenate((x_std_arr[:self.state_dim], np.array([1,1]), x_std_arr[-self.state_dim:]))
@@ -146,8 +172,8 @@ class TrajModelTrainer():
         # x_std_arr[self.state_dim:-self.state_dim] *= 0
         # x_std_arr[self.state_dim:-self.state_dim] += 1
 
-        y_mean_arr = np.mean(y_data, axis=0)
-        y_std_arr = np.std(y_data, axis=0)
+        y_mean_arr = np.mean(full_y_data, axis=0)
+        y_std_arr = np.std(full_y_data, axis=0)
 
         x_data = z_score_normalize(x_data, x_mean_arr, x_std_arr)
         y_data = z_score_normalize(y_data, y_mean_arr, y_std_arr)
@@ -169,13 +195,17 @@ class TrajModelTrainer():
             y_mean_arr = y_mean_arr.cuda()
             y_std_arr = y_std_arr.cuda()
 
-        return (x_mean_arr, x_std_arr, y_mean_arr, y_std_arr), (x_data, y_data)
+        return (x_mean_arr, x_std_arr, y_mean_arr, y_std_arr), (x_data, y_data), episodes
 
 
 
     def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', sub_chance = 0.0):
         j=0
         episodes= self.episodes
+        if cuda:
+            episodes = [ep.to('cuda') for ep in episodes]
+            if val_data: 
+                val_data = [ep.to('cuda') for ep in val_data]
         print('\nBatched trajectory training with batch size ' + str(batch_size))
         for epoch in range(epochs):
             grad_norms = []
@@ -209,7 +239,6 @@ class TrajModelTrainer():
                 j += 1
 
                 states = model.run_traj(batch, threshold = thresh, sub_chance=sub_chance)
-
 
                 loss = pointwise(states, batch)
                 completed = (states.shape[-2] == batch.shape[-2])

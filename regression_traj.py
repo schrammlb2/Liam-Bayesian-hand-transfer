@@ -40,6 +40,7 @@ assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_
 
 state_dim = 4
 action_dim = 2 if (task == 'sim_A' or task == 'sim_B' or nn_type == 'LSTM') else 6
+action_dim = 2 if (task == 'sim_A' or task == 'sim_B') else 6
 # action_dim = 6
 alpha = .4
 lr = .0002
@@ -77,7 +78,7 @@ with open(datafile_name, 'rb') as pickle_file:
 
 if 'transfer' in task:
     with open(save_file, 'rb') as pickle_file:
-        if cuda: model = torch.load(pickle_file).cuda()
+        if cuda: model = torch.load(pickle_file)
         else: model = torch.load(pickle_file, map_location='cpu')
 
 
@@ -102,13 +103,6 @@ out = list(filter(lambda x: len(x) > length_threshold, out))
 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
-full_dataset = out
-
-val_size = int(len(out)*held_out)
-
-val_data = out[-val_size:]
-val_data = val_data[:min(10, len(val_data))]
-out = out[:-val_size]
 
 
 print("\nTraining with " + str(len(out)) + ' trajectories')
@@ -118,30 +112,75 @@ print('\n\n Beginning task: ')
 print('\t' + model_save_path)
 # pdb.set_trace()
 
+# if cuda: 
+#     out = [ep.cuda() for ep in out]
 
 if __name__ == "__main__":
     np.random.shuffle(out)
 
     trainer = TrajModelTrainer(task, out, model_save_path=model_save_path, save_path=save_path, state_dim=state_dim, action_dim=action_dim,
-     task_ofs = task_ofs, reg_loss=reg_loss, nn_type=nn_type) 
+     task_ofs = task_ofs, reg_loss=reg_loss, nn_type=nn_type, held_out=held_out) 
 
     norm = trainer.norm
     
 
     if 'transfer' in task:
         if method == 'traj_transfer':
-            traj_model = LatentNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
-
+            # model.model = TrivialNet()
+            # traj_model = LatentNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
+            traj_model = LatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
+            # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
+            opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
+            # trainer.visualize(traj_model, val_data[0])
+            # trainer.pretrain(traj_model, opt, epochs=1, batch_size=64)
+            trainer.pretrain(traj_model, opt, epochs=30, batch_size=64)
+            # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.005, weight_decay=.001)
             opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
+            # trainer.visualize(traj_model, val_data[0])
             # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=512, sub_chance=1.0)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=.3)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=.2)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=.1)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=60, batch_size=256)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=8)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=4)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=2)
+            if held_out < .9:
+                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=1, batch_size=512, sub_chance=1)
+                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=512, sub_chance=.3)
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=70, batch_size=8)
+
+            else:
+                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=1)
+                # trainer.visualize(traj_model, val_data[0])
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=.03)
+                # trainer.visualize(traj_model, val_data[0])
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=512, sub_chance=.01)
+                # trainer.visualize(traj_model, val_data[0])
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=60, batch_size=256)
+                # trainer.visualize(traj_model, val_data[0])
+                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=80, batch_size=8)
+                # trainer.visualize(traj_model, val_data[0])
+                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=4)
+                # # trainer.visualize(traj_model, val_data[0])
+                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=2)
+                # trainer.visualize(traj_model, val_data[0])
         elif method == 'retrain':
+            if cuda: 
+                model = model.to('cuda')
+                model.norm = tuple(n.cuda() for n in model.norm)
+            model.task = task
+            # pdb.set_trace()
+
+            lr = .000025
+            opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
+            # opt = torch.optim.Adam(model.parameters(), lr=.0000000000000000001, weight_decay=.001)
+            # trainer.pretrain(model, opt, epochs=3, batch_size=64)
+            # trainer.pretrain(model, opt, epochs=30, batch_size=64)
+            # trainer.pretrain(model, opt, epochs=30, batch_size=64)
+            # opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
+            trainer.batch_train(model, opt, val_data=val_data, epochs=30, batch_size=8)
+            # trainer.batch_train(model, opt, val_data=val_data, epochs=1, batch_size=8)
+        elif method == 'retrain_naive':
+            if cuda: 
+                model = model.to('cuda')
+                model.norm = tuple(n.cuda() for n in model.norm)
+            model.task = task
+            lr = .000025
             opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
             trainer.pretrain(model, opt, epochs=30, batch_size=64)
         else:
@@ -153,17 +192,40 @@ if __name__ == "__main__":
     else:
         traj_model = TrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
         if nn_type == 'LSTM':
-            traj_model = LSTMTrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
+            traj_model = LSTMStateTrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
             print(traj_model.prediction)
 
         lr = .0000025
         opt_traj = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
-        trainer.pretrain(traj_model, opt, epochs=150, batch_size=64)
+        # trainer.pretrain(traj_model, opt_traj, epochs=30, batch_size=64)
+        if nn_type == 'LSTM': 
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.1)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.02)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=256, sub_chance=.01)
+            # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=200, batch_size=8)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=4)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=2)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=1)
+        else:
+            trainer.pretrain(traj_model, opt_traj, epochs=70, batch_size=64)
+            model= traj_model
 
-        trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=8)
-        trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=20, batch_size=8)
-        trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=10, batch_size=8)
-        trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=10, batch_size=8)
+
+            opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=256)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
+            if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=64)
+            # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=16)
+            if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=4)
+            trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=2)
+        # trainer.pretrain(traj_model, opt_traj, epochs=150, batch_size=64)
+        # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
+
+        # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=8)
 
     # opt_old2new = torch.optim.Adam(old2new.parameters(), lr=.000005, weight_decay=.001)
     # opt_new2old = torch.optim.Adam(new2old.parameters(), lr=.000005, weight_decay=.001)
