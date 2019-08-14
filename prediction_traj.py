@@ -154,8 +154,10 @@ for test_traj in range(4):
 
     # ground_truth = ground_truth[:len(ground_truth)//4]
     # ground_truth = ground_truth[...,:6]
-    if method == 'direct':
+    if method in ['direct', 'retrain']:
         model.task = 'transferA2B'
+
+    model.coeff = .1
 
     states = model.run_traj(torch.tensor(ground_truth, dtype=dtype), threshold=threshold)
     states = states.squeeze(0)

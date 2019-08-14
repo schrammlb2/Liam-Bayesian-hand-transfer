@@ -199,8 +199,8 @@ class Trainer():
     def visualize(self, model,  episode):
         states = self.run_traj_batch(model, episode, threshold = None, return_states=True)
 
-        episode = episode.detach().numpy()
-        states = states.detach().numpy()
+        episode = episode.cpu().detach().numpy()
+        states = states.cpu().detach().numpy()
 
         plt.figure(1)
         plt.scatter(episode[...,0, 0], episode[..., 0, 1], marker="*", label='start')

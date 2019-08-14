@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 cuda = torch.cuda.is_available()
-cuda = False
+# cuda = False
 dtype = torch.float
 
 
@@ -45,7 +45,7 @@ def softmax(states, true_states):
     loss = torch.mean(loss) #Sum over batch
     return loss
 
-def pointwise(states, true_states, scaling = False):
+def pointwise(states, true_states, scaling = True):
     if scaling:
         mse_fn = torch.nn.MSELoss(reduction='none')
         scaling = 1/((torch.arange(states.shape[1]-1, dtype=torch.float)+1))

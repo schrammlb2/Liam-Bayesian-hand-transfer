@@ -82,48 +82,75 @@ mse_fn = torch.nn.MSELoss()
 # held_out_list = [.99,.98,.97,.96,.95]#,.94,.93,.92,.91,.9]#,.8,.7,.6,.5,.4,.3,.2,.1]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991,.99,.98,.97,.96,.95]
 
-held_out_list = [.997,.996,.995,.994,.992,.991,.99]#,.98,.97,.96,.95,.94,.93,.92,.91,.9]
+# held_out_list = [.997,.996,.995,.994,.992,.991,.99,.98,.97,.96,.95,.94,.93,.92,.91,.9]
+# held_out_list = [.997,.99,.98,.97,.96,.94,.92,.9]
+held_out_list = [.99,.98,.96,.94,.92,.9]
+
+# def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
+#     if single_shot: 
+#         model = model.eval()
+#     true_states = traj[:,:state_dim]
+#     state = traj[0][:state_dim]
+#     states = []#state.view(1, state_dim)
+
+#     for i, point in enumerate(traj):
+#         states.append(state)
+#         action = point[state_dim:state_dim+action_dim]
+#         # if cuda: action = action.cuda()    
+#         inpt = torch.cat((state, action), 0)
+#         inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
+
+#         state_delta = model(inpt)
+#         if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+#         # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
+        
+#         state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
+#         state= state_delta + state
+#         #May need random component here to prevent overfitting
+#         # states = torch.cat((states,state.view(1, state_dim)), 0)
+#                 # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])        
+#         if threshold:
+#             with torch.no_grad():
+#                 mse = mse_fn(state[...,:2], true_states[...,i,:2])
+#             if mse > threshold:
+#                 states = torch.stack(states, 0)
+#                 return states, False, i
+#         # pdb.set_trace()
+
+#     states = torch.stack(states, 0)
+
+#     if threshold:
+#         return states, True, len(states)
+    
+#     return states
+
+
 
 def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
-    if single_shot: 
-        model = model.eval()
-    true_states = traj[:,:state_dim]
-    state = traj[0][:state_dim]
-    states = []#state.view(1, state_dim)
-
-    for i, point in enumerate(traj):
-        states.append(state)
-        action = point[state_dim:state_dim+action_dim]
-        # if cuda: action = action.cuda()    
-        inpt = torch.cat((state, action), 0)
-        inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
-
-        state_delta = model(inpt)
-        if task in ['transferA2B', 'transferB2A']: state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        # if task in ['real_A']:state_delta *= torch.tensor([-1,-1,1,1], dtype=dtype)
-        
-        state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-        state= state_delta + state
-        #May need random component here to prevent overfitting
-        # states = torch.cat((states,state.view(1, state_dim)), 0)
-                # return mse_fn(states[:,:2], true_states[:states.shape[0],:2])        
-        if threshold:
-            with torch.no_grad():
-                mse = mse_fn(state[...,:2], true_states[...,i,:2])
-            if mse > threshold:
-                states = torch.stack(states, 0)
-                return states, False, i
-        # pdb.set_trace()
-
-    states = torch.stack(states, 0)
-
+    states = model.run_traj(torch.tensor(traj, dtype=dtype), threshold=None)
+    # states = model.run_traj(torch.tensor(traj, dtype=dtype), threshold=threshold)
+    states = states.squeeze(0)
+    # states = states.detach().numpy()
     if threshold:
-        return states, True, len(states)
+        minitraj = traj[...,:states.shape[-1]]
+        duration = states.shape[-2]
+
+        # if 'transfer' in task: 
+            # pdb.set_trace()
+
+        mse_fn = torch.nn.MSELoss()
+        # diff = mse_fn(states[...,:2], true_states[...,:2])
+        diff = torch.sum((minitraj[...,:2]-states[...,:2])**2, -1)**.5
+        if (diff <= threshold).all():
+            return states, 1 , duration
+        unbounded = diff > threshold
+        # pdb.set_trace()
+        duration = torch.min(unbounded.nonzero()).item()
     
-    return states
-
-
-
+        finished = duration == traj.shape[0]
+        return states, finished, duration
+    else: 
+        return states
 # model = pt_build_model('0', state_dim+action_dim, state_dim, .1)
 # model_file = save_path+task + '_' + nn_type + '.pkl'
 
@@ -176,9 +203,19 @@ def get_lc(task, method='nonlinear_transform', threshold = None):
         else:
             model_file =save_path+ task + '_' + method + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
             # model_file =save_path+ task + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+
+        if method == 'direct':
+            if task[-1] == 'A':
+                model_file = save_path+ 'real_B_heldout0.1_' + nn_type + '.pkl'
+            if task[-1] == 'B':
+                model_file = save_path+ 'real_A_heldout0.1_'+ '_' + nn_type + '.pkl'
+
         print("Running " + model_file)
         with open(model_file, 'rb') as pickle_file:
             model = torch.load(pickle_file, map_location='cpu')
+
+        if method in ['direct', 'retrain']:
+            model.task='transferA2B'
 
         for test_traj in range(4):
             ground_truth = make_traj(trajectory, test_traj)
@@ -220,6 +257,13 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
         print("Running " + model_file)
         with open(model_file, 'rb') as pickle_file:
             model = torch.load(pickle_file, map_location='cpu')
+            model.coeff = .8
+
+        if method in ['direct', 'retrain']:
+            model.task = 'transferB2A'
+
+        # if method == 'traj_transfer':
+        #     model.model = directmodel
 
         if single_shot:
             i = 1
@@ -235,10 +279,26 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
                 
                 states = states.detach().numpy()
 
+                # if method == 'direct':
+                #     duration = dur
+                #     plt.figure(1)
+                #     plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
+                #     plt.plot(ground_truth[:duration, 0], ground_truth[:duration, 1], color='blue', label='Ground Truth', marker='.')
+                #     plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
 
-            durs.append(dur)
+                #     plt.axis('scaled')
+                #     plt.title('Duration: ' + str(duration) + '.\nFinished: ' + str(finished))
+                #     plt.legend()
+                #     plt.show()
+                #     pdb.set_trace()
+
+
+                durs.append(dur)
 
         mean_durs.append(np.mean(durs))
+        if method == 'direct':
+            mean_durs *= len(held_out_list)
+            break
 
     return np.stack(mean_durs, 0)
 
@@ -246,9 +306,21 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
 single_shot = False
 
 # lc_nl_trans = get_lc('transferB2A')
-methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform', 'direct']
+# methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform', 'direct']
+
+methods = ['retrain', 'traj_transfer', 'direct']
+methods = ['retrain', 'retrain_naive']
+
+# methods = ['traj_transfer', 'direct']
+# methods = ['retrain', 'direct']
+model_file = save_path+ 'real_B_heldout0.1_' + nn_type + '.pkl'
+
+print("Running " + model_file)
+with open(model_file, 'rb') as pickle_file:
+    directmodel = torch.load(pickle_file, map_location='cpu')
 
 threshold = 10
+# threshold = 50
 if threshold == None:
     lc_real_a = get_lc('real_A')
 
@@ -283,6 +355,8 @@ if threshold == None:
     plt.title('Maximum divergence by data quantity')
     plt.legend()
     fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_max_heldout' + str(held_out)+ '_traj_' + str(test_traj) + '.png'
+
+    plt.show()
     plt.savefig(fig_loc)
     plt.close()
 

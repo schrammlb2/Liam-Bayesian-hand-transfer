@@ -53,7 +53,7 @@ l2_coeff = .01
 dtype = torch.float
 cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
-cuda = False
+# cuda = False
 reg_loss = None
 
 
@@ -103,7 +103,10 @@ out = list(filter(lambda x: len(x) > length_threshold, out))
 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 
+val_size = int(len(out)*held_out)
 
+val_data = out[-val_size:]
+val_data = val_data[:min(10, len(val_data))]
 
 print("\nTraining with " + str(len(out)) + ' trajectories')
 
@@ -212,16 +215,16 @@ if __name__ == "__main__":
             model= traj_model
 
 
-            opt = torch.optim.Adam(model.parameters(), lr=.000005, weight_decay=.001)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=10, batch_size=256)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=40, batch_size=64)
+            opt = torch.optim.Adam(model.parameters(), lr=.0000025, weight_decay=.001)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=10, batch_size=256)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=40, batch_size=64)
             if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=64)
             # trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=32)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=16)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=30, batch_size=16)
             if task == 'real_B': trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=16)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=30, batch_size=8)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=4)
-            trainer.batch_train(model, opt, out, val_data =val_data, epochs=20, batch_size=2)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=30, batch_size=8)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=20, batch_size=4)
+            trainer.batch_train(model, opt, val_data =val_data, epochs=20, batch_size=2)
         # trainer.pretrain(traj_model, opt_traj, epochs=150, batch_size=64)
         # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
 
