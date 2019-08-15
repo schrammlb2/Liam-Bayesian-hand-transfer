@@ -63,7 +63,8 @@ action_dim = 6
 alpha = .4
 
 dtype = torch.float
-cuda = False#torch.cuda.is_available()
+cuda = torch.cuda.is_available()
+cuda = False
 print('cuda is_available: '+ str(cuda))
 
 mse_fn = torch.nn.MSELoss()
@@ -157,10 +158,26 @@ for test_traj in range(4):
     if method in ['direct', 'retrain']:
         model.task = 'transferA2B'
 
-    model.coeff = .1
+    model.coeff = .3
 
-    states = model.run_traj(torch.tensor(ground_truth, dtype=dtype), threshold=threshold)
+    gt = torch.tensor(ground_truth, dtype=dtype)
+
+    if cuda: 
+        gt = gt.cuda()
+        x_mean_arr = x_mean_arr.cuda()
+        x_std_arr = x_std_arr.cuda()
+        y_mean_arr = y_mean_arr.cuda()
+        y_std_arr = y_std_arr.cuda()
+
+        model = model.to('cuda')
+        model.norm = tuple([n.cuda() for n in model.norm])
+
+
+
+    states = model.run_traj(gt, threshold=threshold)
     states = states.squeeze(0)
+    if cuda:
+        states = states.cpu()
     states = states.detach().numpy()
     duration = states.shape[-2]
     finished = duration == ground_truth.shape[0]

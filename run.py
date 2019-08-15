@@ -2,8 +2,10 @@ import os
 
 
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform']
-methods = ['retrain_naive']#, 'traj_transfer']
-# methods = ['traj_transfer']
+# methods = ['retrain_naive']#, 'traj_transfer']
+methods = ['traj_transfer']
+methods = ['traj_transfer_timeless']
+methods = ['traj_transfer_timeless_recurrent']
 # methods = ['nonlinear_transform']
 
 

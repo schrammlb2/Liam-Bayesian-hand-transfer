@@ -74,7 +74,8 @@ action_dim = 6
 alpha = .4
 
 dtype = torch.float
-cuda = False#torch.cuda.is_available()
+cuda = torch.cuda.is_available()
+cuda = False
 print('cuda is_available: '+ str(cuda))
 mse_fn = torch.nn.MSELoss()
 
@@ -85,6 +86,7 @@ mse_fn = torch.nn.MSELoss()
 # held_out_list = [.997,.996,.995,.994,.992,.991,.99,.98,.97,.96,.95,.94,.93,.92,.91,.9]
 # held_out_list = [.997,.99,.98,.97,.96,.94,.92,.9]
 held_out_list = [.99,.98,.96,.94,.92,.9]
+
 
 # def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
 #     if single_shot: 
@@ -185,11 +187,11 @@ x_std_arr = torch.tensor(x_std_arr, dtype=dtype)
 y_mean_arr = torch.tensor(y_mean_arr, dtype=dtype)
 y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 # out = [z_score_normalize]
-# if cuda:
-#     x_mean_arr = x_mean_arr.cuda()
-#     x_std_arr = x_std_arr.cuda()
-#     y_mean_arr = y_mean_arr.cuda()
-#     y_std_arr = y_std_arr.cuda()
+if cuda:
+    x_mean_arr = x_mean_arr.cuda()
+    x_std_arr = x_std_arr.cuda()
+    y_mean_arr = y_mean_arr.cuda()
+    y_std_arr = y_std_arr.cuda()
 
 def get_lc(task, method='nonlinear_transform', threshold = None):
     mean_max_mses = []
@@ -257,13 +259,17 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
         print("Running " + model_file)
         with open(model_file, 'rb') as pickle_file:
             model = torch.load(pickle_file, map_location='cpu')
-            model.coeff = .8
+            model.coeff = .2
 
         if method in ['direct', 'retrain']:
             model.task = 'transferB2A'
 
         # if method == 'traj_transfer':
         #     model.model = directmodel
+
+        if cuda: 
+            model = model.to('cuda')
+            model.norm = tuple([n.cuda() for n in model.norm])
 
         if single_shot:
             i = 1
@@ -275,8 +281,13 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
                 ground_truth = make_traj(trajectory, test_traj)
                 ground_truth = ground_truth[:len(ground_truth)]
 
-                states, finished,  dur = run_traj(task, model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=threshold)
-                
+                gt = torch.tensor(ground_truth, dtype=dtype)
+                if cuda: 
+                    gt = gt.cuda()
+
+                states, finished,  dur = run_traj(task, model, gt, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=threshold)
+                if cuda:
+                    states = states.cpu()
                 states = states.detach().numpy()
 
                 # if method == 'direct':
@@ -308,11 +319,13 @@ single_shot = False
 # lc_nl_trans = get_lc('transferB2A')
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform', 'direct']
 
-methods = ['retrain', 'traj_transfer', 'direct']
-methods = ['retrain', 'retrain_naive']
+# methods = ['retrain', 'traj_transfer', 'direct', 'retrain_naive']
+# methods = ['retrain', 'retrain_naive']
 
 # methods = ['traj_transfer', 'direct']
 # methods = ['retrain', 'direct']
+# methods = ['traj_transfer_timeless', 'traj_transfer', 'retrain']
+methods = ['traj_transfer_timeless', 'traj_transfer_timeless_recurrent', 'retrain', 'retrain_naive']
 model_file = save_path+ 'real_B_heldout0.1_' + nn_type + '.pkl'
 
 print("Running " + model_file)

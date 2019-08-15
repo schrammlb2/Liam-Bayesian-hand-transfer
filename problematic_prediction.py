@@ -61,7 +61,7 @@ action_dim = 6
 alpha = .4
 
 dtype = torch.float
-cuda = False#torch.cuda.is_available()
+cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
 
 mse_fn = torch.nn.MSELoss()
@@ -137,7 +137,31 @@ def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshol
 
     return states
 
+def run_traj(model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
+    states = model.run_traj(torch.tensor(traj, dtype=dtype), threshold=None)
+    # states = model.run_traj(torch.tensor(traj, dtype=dtype), threshold=threshold)
+    states = states.squeeze(0)
+    # states = states.detach().numpy()
+    if threshold:
+        minitraj = traj[...,:states.shape[-1]]
+        duration = states.shape[-2]
 
+        # if 'transfer' in task: 
+            # pdb.set_trace()
+
+        mse_fn = torch.nn.MSELoss()
+        # diff = mse_fn(states[...,:2], true_states[...,:2])
+        diff = torch.sum((minitraj[...,:2]-states[...,:2])**2, -1)**.5
+        if (diff <= threshold).all():
+            return states, 1 , duration
+        unbounded = diff > threshold
+        # pdb.set_trace()
+        duration = torch.min(unbounded.nonzero()).item()
+    
+        finished = duration == traj.shape[0]
+        return states, finished, duration
+    else: 
+        return states
 
 # model_file = save_path+task + '_' + nn_type + '.pkl'
 
@@ -182,7 +206,23 @@ threshold = None
 ground_truth = make_traj()
 rollouts = make_rollouts()
 
-states = run_traj(model, torch.tensor(ground_truth, dtype=dtype), x_mean_arr, x_std_arr, y_mean_arr, y_std_arr).detach().numpy()
+
+gt = torch.tensor(ground_truth, dtype=dtype)
+if cuda: 
+    gt = gt.cuda()
+    x_mean_arr = x_mean_arr.cuda()
+    x_std_arr = x_std_arr.cuda()
+    y_mean_arr = y_mean_arr.cuda()
+    y_std_arr = y_std_arr.cuda()
+
+    model = model.to('cuda')
+    model.norm = tuple([n.cuda() for n in model.norm])
+
+states = run_traj(model, gt, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr)
+if cuda:
+    states = states.cpu()
+
+states = states.detach().numpy()
 
 # max_mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).max()
 # mse = ((states[:,:2] - ground_truth[:,:2])**2).sum(axis=1).mean()
@@ -196,12 +236,16 @@ plt.figure(1)
 # for traj in trajectories:
 #     plt.plot(traj[:, 0], traj[:, 1], color='yellow')
 
-plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Plan', marker='.')
-plt.plot(states[:, 0], states[:, 1], color='green', label='New Model', marker='.')
+plt.plot(ground_truth[:, 0], ground_truth[:, 1], color='blue', label='Plan', marker='.', zorder=1)
+plt.plot(states[:, 0], states[:, 1], color='green', label='New Model', marker='.', zorder=2)
 
 for r in rollouts:
-    plt.plot(r[:, 0], r[:, 1], color='red')
+    plt.plot(r[:, 0], r[:, 1], color='red', zorder=0)
 
+for r in rollouts:
+    plt.scatter(r[-1, 0], r[-1, 1], color='black', zorder=10)
+
+plt.scatter(states[-1, 0], states[-1, 1], color='purple', zorder=15)  
 plt.axis('scaled')
 plt.title('NN Prediction -- pos Space')
 plt.legend()
@@ -223,6 +267,6 @@ fig_loc += 'traj' + str(test_traj) + '.png'
 fig_loc = '/home/liam/results/problematic_path/' + task + '_heldout' + str(held_out) + '_traj_' + str(test_traj) + '.png'
 if bayes:
     fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
-plt.savefig(fig_loc)
-plt.close()
-# plt.show()
+# plt.savefig(fig_loc)
+# plt.close()
+plt.show()

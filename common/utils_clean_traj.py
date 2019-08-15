@@ -46,17 +46,24 @@ def softmax(states, true_states):
     return loss
 
 def pointwise(states, true_states, scaling = True):
+    ts = true_states[...,:states.shape[-2],:4]
+    ts = ts.view_as(states)
+    # if true_states.shape[0] == 1:
+    # pdb.set_trace()
     if scaling:
         mse_fn = torch.nn.MSELoss(reduction='none')
-        scaling = 1/((torch.arange(states.shape[1]-1, dtype=torch.float)+1))
+        scaling = 1/((torch.arange(states.shape[-2]-1, dtype=torch.float)+1))
         if cuda: scaling = scaling.cuda()
-        loss_temp = mse_fn(states[...,1:,:2], true_states[...,1:states.shape[-2],:2])
-        loss_temp += mse_fn(states[...,1:,2:4], true_states[...,1:states.shape[-2],2:4])*.1
+        # loss_temp = mse_fn(states[...,1:,:2], true_states[...,1:states.shape[-2],:2])
+        # loss_temp += mse_fn(states[...,1:,2:4], true_states[...,1:states.shape[-2],2:4])*.1
+        loss_temp = mse_fn(states[...,1:,:2], ts[...,1:,:2])
+        loss_temp += mse_fn(states[...,1:,2:4], ts[...,1:,2:4])*.1
         loss = torch.einsum('...kj,k->', [loss_temp, scaling])/loss_temp.numel()
         return loss
     else: 
         mse_fn = torch.nn.MSELoss()
-        return mse_fn(states[...,:,:2], true_states[...,:states.shape[-2],:2])
+        # return mse_fn(states[...,1:,:2], ts[...,:2])
+        return mse_fn(states[...,:2], ts[...,:2])
 
 
 #--------------------------------------------------------------------------------------------------------------------
@@ -199,7 +206,7 @@ class TrajModelTrainer():
 
 
 
-    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', sub_chance = 0.0):
+    def batch_train(self, model, opt, val_data = None, epochs = 500, batch_size = 8, loss_type = 'pointwise', sub_chance = 0.0, scaling=True):
         j=0
         episodes= self.episodes
         if cuda:
@@ -231,7 +238,7 @@ class TrajModelTrainer():
             batches = [torch.stack(batch, 0) for batch in batch_slices] 
 
             accum = 8//batch_size
-
+ 
             for i, batch in enumerate(batches): 
                 if accum == 0 or j % accum ==0: 
                     opt.zero_grad()
@@ -240,7 +247,9 @@ class TrajModelTrainer():
 
                 states = model.run_traj(batch, threshold = thresh, sub_chance=sub_chance)
 
-                loss = pointwise(states, batch)
+                loss = pointwise(states, batch, scaling=scaling)
+                # loss = softmax(states, batch)
+                # loss = pointwise(states, batch, scaling = False)
                 completed = (states.shape[-2] == batch.shape[-2])
                 dist = states.shape[-2]
                 total_loss += loss.data
@@ -266,14 +275,21 @@ class TrajModelTrainer():
                     total_completed += completed
                     total_distance += dist
 
+                states_list = []
+                loss_list = []
+                eps = val_data[len(val_data)//2:]
                 for i, episode in enumerate(val_data[len(val_data)//2:]):
                     states = model.run_traj(episode, threshold = None)
-                    val_loss = softmax(states, episode)
+                    # val_loss = softmax(states, episode)
+                    val_loss = pointwise(states, episode, scaling=False)
+                    states_list.append(states)
+                    loss_list.append(val_loss)
                     total_loss += val_loss.data
                 print('Loss: ' + str(total_loss/(len(val_data)/2)))
                 print('completed: ' + str(total_completed/(len(val_data)/2)))
                 print('Average time before divergence: ' + str(total_distance/(len(val_data)/2)))
 
+                # model.model = model.model.eval()
                 episode = random.choice(val_data)
 
             else:
@@ -281,5 +297,5 @@ class TrajModelTrainer():
                 print('completed: ' + str(total_completed/len(batches)))
                 print('Average time before divergence: ' + str(total_distance/len(batches)))
 
-            with open(self.model_save_path, 'wb') as pickle_file:
-                torch.save(model, pickle_file)
+            # with open(self.model_save_path, 'wb') as pickle_file:
+            #     torch.save(model, pickle_file)
