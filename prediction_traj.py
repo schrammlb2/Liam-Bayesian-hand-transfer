@@ -87,7 +87,8 @@ def make_traj_sim(trajectory):
     
     return np.append(real_positions[:len(acts)], acts, axis=1)
 
-
+def transfer(x, state_dim): 
+    return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
 
 if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
     ground_truth = make_traj(trajectory, test_traj)
@@ -155,10 +156,14 @@ for test_traj in range(4):
 
     # ground_truth = ground_truth[:len(ground_truth)//4]
     # ground_truth = ground_truth[...,:6]
-    if method in ['direct', 'retrain']:
-        model.task = 'transferA2B'
+    # if method in ['direct', 'retrain']:
+    #     model.task = 'transferA2B'
+    model.task = task
+    # pdb.set_trace()
 
-    model.coeff = .3
+    model.coeff = .45
+    if method == 'traj_transfer_timeless':
+        model.coeff = .45
 
     gt = torch.tensor(ground_truth, dtype=dtype)
 
@@ -172,6 +177,9 @@ for test_traj in range(4):
         model = model.to('cuda')
         model.norm = tuple([n.cuda() for n in model.norm])
 
+    # pdb.set_trace()
+    if task[-1] == 'A':
+        gt = transfer(gt, state_dim)
 
 
     states = model.run_traj(gt, threshold=threshold)
@@ -196,19 +204,20 @@ for test_traj in range(4):
     if 'transfer' in task: 
         # method = 
         fig_loc += 'transfer/'
-        fig_loc += method + '/'
+        fig_loc += method + '_'#+ '/'
     if task == 'real_B':
         task_str = 'real_b'
     elif task == 'real_A':
         task_str = 'real_a'
     else: task_str = task
 
-    fig_loc += task_str + '_pretrain_batch/'
+    # fig_loc += task_str + '_pretrain_batch/'
+    fig_loc += task_str + '_pretrain_batch_'
     fig_loc += 'traj' + str(test_traj) + '.png'
 
     # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
-    if bayes:
-        fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
-    # plt.savefig(fig_loc)
+    # if bayes:
+    #     fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
+    plt.savefig(fig_loc)
     # plt.close()
     plt.show()

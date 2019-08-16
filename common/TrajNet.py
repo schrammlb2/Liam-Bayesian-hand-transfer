@@ -28,8 +28,8 @@ class TrivialNet(torch.nn.Module):
     def forward(self, x):
         return x
 
-def transfer(x, state_dim): 
-    return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
+# def transfer(x, state_dim): 
+#     return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
 
 class TrajNet(torch.nn.Module):
     def __init__(self, task, norms, model = None ,state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
@@ -50,6 +50,9 @@ class TrajNet(torch.nn.Module):
         if cuda: 
             self.model = self.model.cuda()
             self.norm = tuple(n.cuda() for n in self.norm)
+
+        self.res = None
+        self.coeff = 1
 
     # def set_system(self):
 
@@ -116,11 +119,12 @@ class TrajNet(torch.nn.Module):
         return states
 
     def forward(self, x):
-        # self.system = self.task[-1]
-        if 'transfer' in self.task:
-            x = transfer(x, self.state_dim)
-        #     x[...,self.state_dim: self.state_dim+2] *= -1
         out = self.model(x)
+        try:
+            if self.res != None:
+                out += self.res(x)*self.coeff
+        except Exception as e:
+            pass
         return out
 
     def reg_loss(self, x):
@@ -150,8 +154,8 @@ class NBackNet(TrajNet):
         if len(batch.shape) == 2:
             batch = batch.unsqueeze(0)
 
-        if 'transfer' in self.task:
-            batch = transfer(batch, self.state_dim)
+        # if 'transfer' in self.task:
+        #     batch = transfer(batch, self.state_dim)
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         true_states = batch[...,:self.state_dim]
         state = batch[...,0,:self.state_dim]
@@ -203,8 +207,8 @@ class NBackNet(TrajNet):
     def forward(self, x):
         nback = torch.cat([x]*self.n, -1)
 
-        if 'transfer' in self.task:
-            nback = transfer(nback, self.state_dim)
+        # if 'transfer' in self.task:
+        #     nback = transfer(nback, self.state_dim)
         return self.model(nback)
 
 
@@ -253,8 +257,6 @@ class LSTMStateTrajNet(torch.nn.Module):
     def forward(self, inpt, given_hidden = None, norm=True):
         self.system = self.task[-1]
 
-        if 'transfer' in self.task:
-            inpt = transfer(inpt, self.state_dim)
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         hidden = given_hidden
 
@@ -555,70 +557,30 @@ class TimeIndepLatentDeltaNet(LatentDeltaNet):
         super(TimeIndepLatentDeltaNet, self).__init__(task, norms, model = model, state_dim = state_dim, 
             action_dim = action_dim, task_ofs = task_ofs, reg_loss = reg_loss)
         self.decoder = TrajNet(task, norms,state_dim=state_dim, action_dim=action_dim)
+        for param in self.model.parameters():
+            param.requires_grad = False
 
 
 
-class TimeIndepChainedLatentDeltaNet(LatentDeltaNet):
+class TimeIndepChainedLatentDeltaNet(TrajNet):
     def __init__(self, task, norms, model = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
         super(TimeIndepChainedLatentDeltaNet, self).__init__(task, norms, model = model, state_dim = state_dim, 
             action_dim = action_dim, task_ofs = task_ofs, reg_loss = reg_loss)
-        self.task = task
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.dtype = torch.float
-        self.norm = norms
+        # self.task = task
+        # self.state_dim = state_dim
+        # self.action_dim = action_dim
+        # self.dtype = torch.float
+        # self.norm = norms
         self.decoder = TrajNet(task, norms,state_dim=state_dim, action_dim=action_dim)
+        # self.coeff = 1
+        # for param in self.model.parameters():
+        #     param.requires_grad = False
 
-    def run_traj(self, inbatch, threshold = 50, sub_chance = 0.0):
-        dim = 3
-        if len(inbatch.shape) == 2:
-            batch = inbatch.unsqueeze(0)
-            dim = 2
-        else:
-            batch = inbatch
-
-        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
-        true_states = batch[...,:,:self.state_dim]
-        state = batch[...,0,:self.state_dim]
-        states = []#state.view(1, self.state_dim)
-        sim_deltas = []
-        if cuda:
-            state = state.cuda()
-            true_states = true_states.cuda()
-
-        for i in range(batch.shape[1]):
-            states.append(state)
-            action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
-
-            if cuda: action = action.cuda() 
-            inpt = torch.cat((state, action), -1)
-
-
-            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
-
-            state_delta = self.forward(inpt)
-
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)#*2
-            sim_deltas.append(state_delta)
-
-            state= state_delta + state
-
-            #May need random component here to prevent overfitting
-            if threshold and i%10:
-                with torch.no_grad():
-                    mse_fn = torch.nn.MSELoss()
-                    mse = mse_fn(state[...,:2], true_states[...,i,:2])
-                if mse > threshold:
-                    states = torch.stack(states, -2)
-                    return states
-
-        states = torch.stack(states, -2)
-        if dim == 2:
-            states=states.squeeze(0)
-        return states
 
     def forward(self, x):
-        if 'transfer' in self.task:
-            x = transfer(x, self.state_dim)
-        out = self.model(x) + self.decoder(x)
+        # if 'transfer' in self.task:
+        #     x = transfer(x, self.state_dim)
+        out = super().forward(x)
+        out += self.decoder(x)*0
+        # .decoder(x)*0#self.coeff
         return out

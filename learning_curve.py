@@ -64,6 +64,8 @@ def make_traj(trajectory, test_traj):
     
     return np.append(real_positions, acts, axis=1)
 
+def transfer(x, state_dim): 
+    return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
 
 # if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
 #     ground_truth = make_traj(trajectory, test_traj)
@@ -86,6 +88,8 @@ mse_fn = torch.nn.MSELoss()
 # held_out_list = [.997,.996,.995,.994,.992,.991,.99,.98,.97,.96,.95,.94,.93,.92,.91,.9]
 # held_out_list = [.997,.99,.98,.97,.96,.94,.92,.9]
 held_out_list = [.99,.98,.96,.94,.92,.9]
+
+# held_out_list = [.98, .9]
 
 
 # def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
@@ -259,13 +263,13 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
         print("Running " + model_file)
         with open(model_file, 'rb') as pickle_file:
             model = torch.load(pickle_file, map_location='cpu')
-            model.coeff = .2
+
+        model.coeff = -.15
+        if method == 'traj_transfer_timeless':
+            model.coeff = .3
 
         if method in ['direct', 'retrain']:
             model.task = 'transferB2A'
-
-        # if method == 'traj_transfer':
-        #     model.model = directmodel
 
         if cuda: 
             model = model.to('cuda')
@@ -285,24 +289,13 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
                 if cuda: 
                     gt = gt.cuda()
 
+                if task[-1] == 'A':
+                    gt = transfer(gt, state_dim)
+
                 states, finished,  dur = run_traj(task, model, gt, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=threshold)
                 if cuda:
                     states = states.cpu()
                 states = states.detach().numpy()
-
-                # if method == 'direct':
-                #     duration = dur
-                #     plt.figure(1)
-                #     plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-                #     plt.plot(ground_truth[:duration, 0], ground_truth[:duration, 1], color='blue', label='Ground Truth', marker='.')
-                #     plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
-
-                #     plt.axis('scaled')
-                #     plt.title('Duration: ' + str(duration) + '.\nFinished: ' + str(finished))
-                #     plt.legend()
-                #     plt.show()
-                #     pdb.set_trace()
-
 
                 durs.append(dur)
 
@@ -317,6 +310,13 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
 single_shot = False
 
 # lc_nl_trans = get_lc('transferB2A')
+methods = []
+# methods.append('retrain')
+# methods.append('retrain_naive')
+# methods.append('traj_transfer')
+methods.append('traj_transfer_timeless')
+methods.append('traj_transfer_timeless_recurrent')
+# methods.append('direct')
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform', 'direct']
 
 # methods = ['retrain', 'traj_transfer', 'direct', 'retrain_naive']
@@ -325,7 +325,9 @@ single_shot = False
 # methods = ['traj_transfer', 'direct']
 # methods = ['retrain', 'direct']
 # methods = ['traj_transfer_timeless', 'traj_transfer', 'retrain']
-methods = ['traj_transfer_timeless', 'traj_transfer_timeless_recurrent', 'retrain', 'retrain_naive']
+# methods = ['traj_transfer_timeless', 'retrain', 'retrain_naive', 'traj_tranfer_timeless_recurrent']
+# methods = ['retrain', 'retrain_naive', 'traj_transfer_timeless_recurrent']
+# methods = ['traj_transfer_timeless_recurrent', 'traj_transfer_timeless']
 model_file = save_path+ 'real_B_heldout0.1_' + nn_type + '.pkl'
 
 print("Running " + model_file)
@@ -341,7 +343,6 @@ if threshold == None:
 
     # pdb.set_trace()
     # lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
-    # methods = ['retrain', 'constrained_restart', 'constrained_retrain']
     color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow']
     plt.figure(1)
     for method, color in zip(methods, color_list):

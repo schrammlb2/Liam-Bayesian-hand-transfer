@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 cuda = torch.cuda.is_available()
-# cuda = False
+cuda = False
 dtype = torch.float
 
 
