@@ -147,6 +147,7 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 max_mses = []
 mses = []
 threshold = None
+# threshold = 10
 
 for test_traj in range(4):
     if task == 'sim_A':

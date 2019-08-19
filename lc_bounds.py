@@ -41,7 +41,8 @@ save_path = 'save_model/robotic_hand_real/pytorch/'
 #     'sim_s10' : ('save_model/robotic_hand_simulator/A/d4_s10_pos', 'save_model/robotic_hand_simulator/A/d4_s10_load')
 #     }
 trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test_paths.obj', 
-    'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
+    'real_A': 'data/robotic_hand_real/A/t42_cyl35_data_discrete_v0_d4_m1_episodes.obj'
+    # 'real_A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl', 
     'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
@@ -54,15 +55,16 @@ with open(trajectory_path, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
 def make_traj(trajectory, test_traj):
-    real_positions = trajectory[0][test_traj]
-    acts = trajectory[1][test_traj]
+    return trajectory[-test_traj]
+    # real_positions = trajectory[0][test_traj]
+    # acts = trajectory[1][test_traj]
 
-    if trajectory_path == 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl' and test_traj == 0:
-        start = 199
-        real_positions = trajectory[0][test_traj][start:]
-        acts = trajectory[1][test_traj][start:]
+    # if trajectory_path == 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl' and test_traj == 0:
+    #     start = 199
+    #     real_positions = trajectory[0][test_traj][start:]
+    #     acts = trajectory[1][test_traj][start:]
     
-    return np.append(real_positions, acts, axis=1)
+    # return np.append(real_positions, acts, axis=1)
 
 def transfer(x, state_dim): 
     return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
@@ -309,12 +311,16 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
 
                 durs.append(dur)
 
-        mean_durs.append(np.mean(durs))
+        
+        std = np.std(durs)
+        if not finished:
+            mean_durs.append(np.mean(durs))
+            std_durs.append(std)
         if method == 'direct':
             mean_durs *= len(held_out_list)
             break
 
-    return np.stack(mean_durs, 0)
+    return np.stack(mean_durs, 0), np.stack(std_durs, 0)
 
 
 single_shot = False
@@ -346,78 +352,37 @@ with open(model_file, 'rb') as pickle_file:
 
 threshold = 10
 # threshold = 50
-if threshold == None:
-    lc_real_a = get_lc('real_A')
+method_rename_dict = {'traj_transfer_timeless' : 'cumulative residual', 
+    'traj_transfer_timeless_recurrent' : 'recurrent residual', 
+    'retrain': 'trajectory fine-tuning',
+    'retrain_naive' : 'naive fine-tuning',
+    'direct' : 'direct transfer'
+    }
+def rename(string):
+    if string in method_rename_dict.keys():
+        return method_rename_dict[string]
+    else:
+        return string
+lc_real_a, lc_real_a_std = duration_lc('real_A', threshold)
+# pdb.set_trace()
+held_out_arr = 1 - np.array(held_out_list)
 
-    held_out_arr = 1 - np.array(held_out_list[1:])
-
+# pdb.set_trace()
+# lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
+color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow', 'megenta']
+plt.figure(1)
+for method, color in zip(methods, color_list):
+    method_rename = rename(method)
+    lc_nl_trans, lc_nl_trans_std = duration_lc('transferB2A', threshold, method=method)
     # pdb.set_trace()
-    # lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
-    color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow']
-    plt.figure(1)
-    for method, color in zip(methods, color_list):
-        lc_nl_trans = get_lc('transferB2A', method)
-        a = np.clip(lc_nl_trans[1], 0, 10**5)
-        plt.plot(held_out_arr, a[1:], color=color, label=method)
-    # plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
-    plt.plot(held_out_arr, lc_real_a[1][1:], color='blue', label='New model')
-    # plt.axis('scaled')
-    plt.title('Error by data quantity')
-    plt.legend()
-    fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_mean_heldout' + str(held_out)+ '_traj_' + str(test_traj) + '.png'
-    plt.savefig(fig_loc)
-    plt.close()
-
-
-    plt.figure(1)
-    for method in methods:
-        lc_nl_trans = get_lc('transferB2A', method)
-        plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label=method)
-    # plt.plot(held_out_arr, lc_nl_trans[0][1:], color='red', label='Transfer model')
-    plt.plot(held_out_arr, lc_real_a[0][1:], color='blue', label='New model')
-    # plt.axis('scaled')
-    plt.title('Maximum divergence by data quantity')
-    plt.legend()
-    fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_max_heldout' + str(held_out)+ '_traj_' + str(test_traj) + '.png'
-
-    plt.show()
-    plt.savefig(fig_loc)
-    plt.close()
-
-
-else: 
-
-    method_rename_dict = {'traj_transfer_timeless' : 'cumulative residual', 
-        'traj_transfer_timeless_recurrent' : 'recurrent residual', 
-        'retrain': 'trajectory fine-tuning',
-        'retrain_naive' : 'naive fine-tuning',
-        'direct' : 'direct transfer'
-        }
-    def rename(string):
-        if string in method_rename_dict.keys():
-            return method_rename_dict[string]
-        else:
-            return string
-    lc_real_a = duration_lc('real_A', threshold)
-    # pdb.set_trace()
-    held_out_arr = 1 - np.array(held_out_list)
-
-    # pdb.set_trace()
-    # lc_nl_trans = [np.concatenate((lc)) for lc in lc_nl_trans]
-    color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow', 'megenta']
-    plt.figure(1)
-    for method, color in zip(methods, color_list):
-        method_rename = rename(method)
-        lc_nl_trans= duration_lc('transferB2A', threshold, method=method)
-        # pdb.set_trace()
-        # plt.plot(held_out_arr, lc_nl_trans, color=color, label=method)
-        plt.plot(held_out_arr, lc_nl_trans, color=color, label=method_rename)
-    # plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
-    plt.plot(held_out_arr, lc_real_a, color='blue', label='New model')
-    # plt.axis('scaled')
-    plt.title('Duration')
-    plt.legend()
-    fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_duration' + str(held_out_list[-1])+ '_traj_' + str(test_traj) + '.png'
-    # plt.savefig(fig_loc)
-    plt.show()
-    # plt.close()
+    # plt.plot(held_out_arr, lc_nl_trans, color=color, label=method)
+    plt.plot(held_out_arr, lc_nl_trans, color=color, label=method_rename)
+# plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
+plt.plot(held_out_arr, lc_real_a, color='blue', label='New model')
+# plt.axis('scaled')
+plt.title('Duration')
+plt.legend()
+fig_loc = '/home/liam/results/recurrent_network_results/learning_curve_duration' + str(held_out_list[-1])+ '_traj_' + str(test_traj) + '.png'
+# plt.savefig(fig_loc)
+plt.show()
+# plt.close()
