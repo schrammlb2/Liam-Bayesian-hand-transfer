@@ -157,7 +157,7 @@ if __name__ == "__main__":
         elif method == 'traj_transfer_timeless':
             traj_model = TimeIndepLatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
             opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
-            trainer.pretrain(traj_model, opt, epochs=70, batch_size=64)
+            trainer.pretrain(traj_model, opt, epochs=30, batch_size=64)
 
         elif method == 'traj_transfer_timeless_recurrent':
             traj_model = model
@@ -171,8 +171,8 @@ if __name__ == "__main__":
 
             lr = .000025
             opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
-            # trainer.batch_train(model, opt, val_data=val_data, epochs=30, batch_size=8)
-            trainer.pretrain(traj_model, opt, epochs=70, batch_size=64)
+            trainer.batch_train(model, opt, val_data=val_data, epochs=30, batch_size=8)
+            # trainer.pretrain(traj_model, opt, epochs=60, batch_size=64)
 
 
         elif method == 'retrain':

@@ -90,7 +90,7 @@ mse_fn = torch.nn.MSELoss()
 held_out_list = [.99,.98,.96,.94,.92,.9]
 
 # held_out_list = [.98, .9]
-# held_out_list = [.99,.95, .9,.8,.7,.6,.5]#,.4,.3,.2,.1]
+
 
 # def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, threshold=None):
 #     if single_shot: 
@@ -154,16 +154,6 @@ def run_traj(task, model, traj, x_mean_arr, x_std_arr, y_mean_arr, y_std_arr, th
         duration = torch.min(unbounded.nonzero()).item()
     
         finished = duration == traj.shape[0]
-        # t = traj[1-unbounded].detach().numpy()
-        # s = states[1-unbounded].detach().numpy()
-        # plt.figure(1)
-        # plt.plot(t[..., 0], t[..., 1], color='blue', label='Ground Truth', marker='.')
-        # plt.plot(s[..., 0], s[..., 1], color='red', label='NN Prediction')
-        # plt.axis('scaled')
-        # plt.legend()
-        # plt.show()
-
-        # pdb.set_trace()
         return states, finished, duration
     else: 
         return states
@@ -274,7 +264,7 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
         with open(model_file, 'rb') as pickle_file:
             model = torch.load(pickle_file, map_location='cpu')
 
-        model.coeff = .3
+        model.coeff = -.15
         if method == 'traj_transfer_timeless':
             model.coeff = .3
 
@@ -321,12 +311,12 @@ single_shot = False
 
 # lc_nl_trans = get_lc('transferB2A')
 methods = []
-methods.append('retrain')
-methods.append('retrain_naive')
+# methods.append('retrain')
+# methods.append('retrain_naive')
 # methods.append('traj_transfer')
 methods.append('traj_transfer_timeless')
 methods.append('traj_transfer_timeless_recurrent')
-methods.append('direct')
+# methods.append('direct')
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform', 'direct']
 
 # methods = ['retrain', 'traj_transfer', 'direct', 'retrain_naive']
@@ -386,18 +376,6 @@ if threshold == None:
 
 
 else: 
-
-    method_rename_dict = {'traj_transfer_timeless' : 'cumulative residual', 
-        'traj_transfer_timeless_recurrent' : 'recurrent residual', 
-        'retrain': 'trajectory fine-tuning',
-        'retrain_naive' : 'naive fine-tuning',
-        'direct' : 'direct transfer'
-        }
-    def rename(string):
-        if string in method_rename_dict.keys():
-            return method_rename_dict[string]
-        else:
-            return string
     lc_real_a = duration_lc('real_A', threshold)
     # pdb.set_trace()
     held_out_arr = 1 - np.array(held_out_list)
@@ -407,11 +385,9 @@ else:
     color_list = ['red', 'green', 'purple', 'black', 'orange', 'yellow', 'megenta']
     plt.figure(1)
     for method, color in zip(methods, color_list):
-        method_rename = rename(method)
         lc_nl_trans= duration_lc('transferB2A', threshold, method=method)
         # pdb.set_trace()
-        # plt.plot(held_out_arr, lc_nl_trans, color=color, label=method)
-        plt.plot(held_out_arr, lc_nl_trans, color=color, label=method_rename)
+        plt.plot(held_out_arr, lc_nl_trans, color=color, label=method)
     # plt.plot(held_out_arr, lc_nl_trans[1][1:], color='red', label='Transfer model')
     plt.plot(held_out_arr, lc_real_a, color='blue', label='New model')
     # plt.axis('scaled')
