@@ -95,6 +95,7 @@ class TrajModelTrainer():
         if cuda: 
             self.x_data=self.x_data.to('cuda')
             self.y_data=self.y_data.to('cuda')
+            model = model.cuda()
         dataset = torch.utils.data.TensorDataset(self.x_data, self.y_data)
         loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
         loss_fn = torch.nn.MSELoss()
@@ -297,5 +298,5 @@ class TrajModelTrainer():
                 print('completed: ' + str(total_completed/len(batches)))
                 print('Average time before divergence: ' + str(total_distance/len(batches)))
 
-            # with open(self.model_save_path, 'wb') as pickle_file:
-            #     torch.save(model, pickle_file)
+            with open(self.model_save_path, 'wb') as pickle_file:
+                torch.save(model, pickle_file)

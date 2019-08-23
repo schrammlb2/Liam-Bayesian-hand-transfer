@@ -119,6 +119,12 @@ class TrajNet(torch.nn.Module):
         return states
 
     def forward(self, x):
+        # pdb.set_trace()
+        # print('/')
+        # try:
+        #     out = self.model(x)
+        # except Exception as e:
+        #     pdb.set_trace()
         out = self.model(x)
         try:
             if self.res != None:
@@ -129,6 +135,8 @@ class TrajNet(torch.nn.Module):
 
     def reg_loss(self, x):
         return 0
+
+
 
 
 
@@ -523,7 +531,19 @@ class LatentDeltaNet(torch.nn.Module):
         projected_states = z_score_normalize(projected_states, x_mean_arr, x_std_arr)
         deltas = self.decoder(projected_states)
         deltas2 = z_score_denormalize(deltas, y_mean_arr, y_std_arr)*self.coeff
-        distance = torch.cumsum(deltas2, dim=-2)
+        distance = []
+        prev_dis = 0
+        self.lyap = .9997
+        # self.lyap =  1
+        for i in range(deltas2.shape[-2]):
+            dis = prev_dis*self.lyap + deltas2[...,i,:]
+            distance.append(dis)
+            prev_dis = dis
+        distance = torch.stack(distance, -2)
+
+        if distance.shape != torch.cumsum(deltas2, dim=-2).shape:
+            pdb.set_trace()
+        # distance = torch.cumsum(deltas2, dim=-2)
         # pdb.set_trace()
         states  = distance + states 
 

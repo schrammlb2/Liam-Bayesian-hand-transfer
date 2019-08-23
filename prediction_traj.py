@@ -144,6 +144,20 @@ y_std_arr = torch.tensor(y_std_arr, dtype=dtype)
 #     y_mean_arr = y_mean_arr.cuda()
 #     y_std_arr = y_std_arr.cuda()
 
+
+
+method_rename_dict = {'traj_transfer_timeless' : 'cumulative residual', 
+    'traj_transfer_timeless_recurrent' : 'recurrent residual', 
+    'retrain': 'trajectory fine-tuning',
+    'retrain_naive' : 'naive fine-tuning',
+    'direct' : 'direct transfer'
+    }
+def rename(string):
+    if string in method_rename_dict.keys():
+        return method_rename_dict[string]
+    else:
+        return string
+
 max_mses = []
 mses = []
 threshold = None
@@ -161,9 +175,9 @@ for test_traj in range(4):
     model.task = task
     # pdb.set_trace()
 
-    model.coeff = .45
-    if method == 'traj_transfer_timeless':
-        model.coeff = .45
+    # model.coeff = -.3#.45
+    # if method == 'traj_transfer_timeless':
+    #     model.coeff = .45
 
     gt = torch.tensor(ground_truth, dtype=dtype)
 
@@ -181,6 +195,7 @@ for test_traj in range(4):
     if task[-1] == 'A':
         gt = transfer(gt, state_dim)
 
+    model.coeff = .3
 
     states = model.run_traj(gt, threshold=threshold)
     states = states.squeeze(0)
@@ -218,6 +233,6 @@ for test_traj in range(4):
     # fig_loc = '/home/liam/results/' + task + '_heldout.95_traj_' + str(test_traj) + '.png'
     # if bayes:
     #     fig_loc = '/home/liam/results/' + task + '_heldout' + str(held_out)+'_traj_' + str(test_traj) + '_bayesian.png'
-    plt.savefig(fig_loc)
+    # plt.savefig(fig_loc)
     # plt.close()
     plt.show()
