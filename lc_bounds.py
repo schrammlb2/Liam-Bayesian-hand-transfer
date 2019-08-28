@@ -282,9 +282,9 @@ def duration_lc(task, threshold, method='nonlinear_transform'):
             with open(model_file, 'rb') as pickle_file:
                 model = torch.load(pickle_file, map_location='cpu')
 
-            model.coeff = .3
-            if method == 'traj_transfer_timeless':
-                model.coeff = .3
+            # model.coeff = .3
+            # if method == 'traj_transfer_timeless':
+            #     model.coeff = .3
 
             if method in ['direct', 'retrain']:
                 model.task = 'transferB2A'
@@ -336,8 +336,8 @@ single_shot = False
 # lc_nl_trans = get_lc('transferB2A')
 methods = []
 # methods.append('traj_transfer')
-methods.append('retrain')
-methods.append('retrain_naive')
+# methods.append('retrain')
+# methods.append('retrain_naive')
 methods.append('traj_transfer_timeless')
 methods.append('traj_transfer_timeless_recurrent')
 

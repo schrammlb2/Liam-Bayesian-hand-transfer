@@ -160,10 +160,10 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
               torch.nn.SELU(),
               torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, 128),
-              torch.nn.Tanh(),
-              torch.nn.Dropout(dropout_p),
-              # torch.nn.SELU(),
-              # torch.nn.AlphaDropout(dropout_p),
+              # torch.nn.Tanh(),
+              # torch.nn.Dropout(dropout_p),
+              torch.nn.SELU(),
+              torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, output_dim),
         )
     elif nn_type == '2':

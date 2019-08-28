@@ -8,7 +8,7 @@ import random
 
 dtype = torch.float
 cuda = torch.cuda.is_available()
-cuda = False
+# cuda = False
 
 class ResBlock(torch.nn.Module):
     def __init__(self, model, coeff = 1):
@@ -533,7 +533,8 @@ class LatentDeltaNet(torch.nn.Module):
         deltas2 = z_score_denormalize(deltas, y_mean_arr, y_std_arr)*self.coeff
         distance = []
         prev_dis = 0
-        self.lyap = .9997
+        # self.lyap = .9997
+        self.lyap = .97
         # self.lyap =  1
         for i in range(deltas2.shape[-2]):
             dis = prev_dis*self.lyap + deltas2[...,i,:]

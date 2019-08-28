@@ -273,9 +273,9 @@ single_shot = False
 methods = []
 # methods.append('traj_transfer')
 methods.append('retrain')
-methods.append('retrain_naive')
+# methods.append('retrain_naive')
 methods.append('traj_transfer_timeless')
-methods.append('traj_transfer_timeless_recurrent')
+# methods.append('traj_transfer_timeless_recurrent')
 
 
 model_file = save_path+ 'real_B_heldout0.1_' + nn_type + '.pkl'
@@ -311,11 +311,11 @@ plt.plot(x_list, [lc_nl_trans[0]]+lc_nl_trans, color='blue', label='direct')
 
 baseline = lc_nl_trans[0]
 
-lc_real_a, lc_real_a_std = get_lc('real_A', threshold)
-lc_real_a = np.array(lc_real_a)
-lc_real_a_std = np.array(lc_real_a_std)
-plt.plot(held_out_arr, lc_real_a, color='blue', label='New model')
-plt.fill_between(held_out_arr, lc_real_a + 2*lc_real_a_std, lc_real_a - 2*lc_real_a_std, color='blue', alpha=.7)
+# lc_real_a, lc_real_a_std = get_lc('real_A', threshold)
+# lc_real_a = np.array(lc_real_a)
+# lc_real_a_std = np.array(lc_real_a_std)
+# plt.plot(held_out_arr, lc_real_a, color='blue', label='New model')
+# plt.fill_between(held_out_arr, lc_real_a + 2*lc_real_a_std, lc_real_a - 2*lc_real_a_std, color='blue', alpha=.7)
 
 
 

@@ -5,8 +5,8 @@ methods = []
 # methods.append('retrain')
 # methods.append('retrain_naive')
 # methods.append('traj_transfer')
-methods.append('traj_transfer_timeless')
-# methods.append('traj_transfer_timeless_recurrent')
+# methods.append('traj_transfer_timeless')
+methods.append('traj_transfer_timeless_recurrent')
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform']
 # methods = ['retrain']#, 'traj_transfer']
 # methods = ['traj_transfer']
@@ -21,7 +21,7 @@ held_out_list = [.99,.98,.96,.94,.92,.9,]
 held_out_list = [.96,.94,.92,.9,]
 
 held_out_list = [.997, .993,.99,.98,.96,.94,.92,.9,]
-held_out_list = [.9,]
+# held_out_list = [.9,]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991]#,.99]
 # held_out_list = [.99, .98,.97,.96,.95,.94,.93,.92,.91,.9]#,.8,.7,.6,.5,.4,.3,.2,.1]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991,.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]

@@ -7,6 +7,7 @@ import pdb
 import torch
 from common.data_normalization import *
 from common.pt_build_model import *
+from common.utils_clean_traj import *
 import matplotlib.pyplot as plt
 
 from sys import argv
@@ -48,7 +49,13 @@ trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test
     'real_B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferA2B': 'data/robotic_hand_real/B/testpaths_cyl35_red_d_v0.pkl',
     'transferB2A': 'data/robotic_hand_real/A/testpaths_cyl35_d_v0.pkl',
-    'sim_A': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
+    # 'sim_A': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl', 
+    # 'sim_B': 'data/robotic_hand_simulator/A/test_trajectory/jt_rollout_1_v14_d8_m1.pkl',,
+    'sim_A': 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj', 
+    'sim_B' : 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj',
+    'sim_cont': 'data/robotic_hand_simulator/sim_data_cont_v0_d4_m1_episodes.obj',
+    'sim_transferA2B': 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj', 
+    'sim_transferB2A' : 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
     # 'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
     }
 trajectory_path = trajectory_path_map[task]
@@ -64,7 +71,7 @@ alpha = .4
 
 dtype = torch.float
 cuda = torch.cuda.is_available()
-cuda = False
+# cuda = False
 print('cuda is_available: '+ str(cuda))
 
 mse_fn = torch.nn.MSELoss()
@@ -81,11 +88,17 @@ def make_traj(trajectory, test_traj):
 
     return np.append(real_positions[:len(acts)], acts, axis=1)
 
-def make_traj_sim(trajectory):
-    real_positions = trajectory[0][...,:4]
-    acts = trajectory[1]
+# def make_traj_sim(trajectory):
+#     real_positions = trajectory[0][...,:4]
+#     acts = trajectory[1]
     
-    return np.append(real_positions[:len(acts)], acts, axis=1)
+#     return np.append(real_positions[:len(acts)], acts, axis=1)
+def make_traj_sim(trajectory, test_traj):
+    # pdb.set_trace()
+    out = clean_data(trajectory)
+    out = out[-test_traj][...,:6]
+    # out = clean_data(out)
+    return out
 
 def transfer(x, state_dim): 
     return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
@@ -98,8 +111,8 @@ if task in ['real_A', 'real_B', 'transferA2B', 'transferB2A']:
 
 model_file = save_path+task + '_' + nn_type + '.pkl'
 
-if 'real' in task: 
-    model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
+
+
 if 'transfer' in task: 
     print('method = ' + method)
     if method == '':
@@ -108,6 +121,9 @@ if 'transfer' in task:
         model_file = save_path + 'real_' + task[-3] + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
     else:
         model_file = save_path+task + '_' + method + '_heldout' + str(held_out) + '_' + nn_type + '.pkl'
+# if 'real' in task:
+else: 
+    model_file = save_path+task + '_heldout' + str(held_out) +  '_'+ nn_type + '.pkl'
 
 
 # if bayes:
@@ -163,8 +179,10 @@ mses = []
 threshold = None
 
 for test_traj in range(4):
-    if task == 'sim_A':
-        ground_truth = make_traj_sim(trajectory)
+    if 'sim' in task:
+        # ground_truth = make_traj_sim(trajectory)
+        ground_truth = make_traj_sim(trajectory, test_traj)
+        # pdb.set_trace()
     else:
         ground_truth = make_traj(trajectory, test_traj)
 

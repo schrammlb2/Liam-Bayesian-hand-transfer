@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 cuda = torch.cuda.is_available()
-cuda = False
+# cuda = False
 dtype = torch.float
 
 
@@ -92,6 +92,7 @@ class TrajModelTrainer():
 
 
     def pretrain(self, model, opt, train_load = True, epochs = 30, batch_size = 64):
+        print("Pretraining")
         if cuda: 
             self.x_data=self.x_data.to('cuda')
             self.y_data=self.y_data.to('cuda')
@@ -174,8 +175,8 @@ class TrajModelTrainer():
         x_mean_arr = np.mean(full_x_data, axis=0)
         x_std_arr = np.std(full_x_data, axis=0)
 
-        x_mean_arr = np.concatenate((x_mean_arr[:self.state_dim], np.array([0,0]), x_mean_arr[-self.state_dim:]))
-        x_std_arr = np.concatenate((x_std_arr[:self.state_dim], np.array([1,1]), x_std_arr[-self.state_dim:]))
+        x_mean_arr = np.concatenate((x_mean_arr[:self.state_dim], np.array([0]*self.action_dim), x_mean_arr[-self.state_dim:]))
+        x_std_arr = np.concatenate((x_std_arr[:self.state_dim], np.array([1]*self.action_dim), x_std_arr[-self.state_dim:]))
         # x_mean_arr[self.state_dim:-self.state_dim] *= 0
         # x_std_arr[self.state_dim:-self.state_dim] *= 0
         # x_std_arr[self.state_dim:-self.state_dim] += 1
