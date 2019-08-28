@@ -1,0 +1,2 @@
+model_checkpoint_path: "BNN_weights_SRCLEN_10"
+all_model_checkpoint_paths: "BNN_weights_SRCLEN_10"
