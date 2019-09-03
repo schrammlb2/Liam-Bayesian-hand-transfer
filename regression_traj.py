@@ -39,13 +39,15 @@ if len(argv) > 4 and argv[4] != '_':
 if len(argv) > 5 and argv[5] != '_':
     suffix = argv[5]
 
-assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B']
+assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B', 'acrobot_A']
 
 
 
 state_dim = 4
 action_dim = 2 if (task == 'sim_A' or task == 'sim_B' or nn_type == 'LSTM') else 6
 action_dim = 2 if (task == 'sim_A' or task == 'sim_B') else 6
+if 'acrobot' in task:
+    action_dim = 1
 # action_dim = 6
 alpha = .4
 lr = .0002
@@ -65,7 +67,11 @@ reg_loss = None
 
 
 save_path = 'save_model/robotic_hand_real/pytorch'
-if 'sim' not in task:
+if 'acrobot' in task:
+    if task[-1] == 'A':
+        datafile_name = 'data/acrobot/acrobot_data_v2_d4'
+        save_file = save_path+'/acrobot_B'+ '_heldout0.1_' + nn_type + '.pkl'    
+elif 'sim' not in task:
     if task[-1] == 'B':
         datafile_name = 'data/robotic_hand_real/B/t42_cyl35_red_data_discrete_v0_d4_m1_episodes.obj'
         # save_file = save_path+'/real_A'+ '_' + nn_type + '.pkl'
@@ -100,7 +106,8 @@ if 'transfer' in task:
 
 
 
-# pdb.set_trace()
+if 'acrobot' in task:
+    out = [out]
 model_save_path = model_save_path[:-4] + suffix + '.pkl'
 
 if task in ['real_B', 'sim_A', 'sim_B']:
@@ -122,7 +129,7 @@ if suffix != '':
 
 def transfer(x, state_dim): 
     return torch.cat((x[...,:state_dim], x[...,state_dim:state_dim+2]*-1,  x[...,state_dim+2:]), -1) 
-if task[-1] == 'A':
+if task[-1] == 'A' and 'sim' not in task and 'acrobot' not in task:
     out = [transfer(ep, state_dim) for ep in out]
 
 val_size = int(len(out)*held_out)
@@ -262,6 +269,7 @@ if __name__ == "__main__":
         traj_model = TrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
         if nn_type == 'LSTM':
             traj_model = LSTMStateTrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
+            traj_model = CumulativeLSTMStateTrajNet(task, norm, state_dim=state_dim, action_dim=action_dim)
             print(traj_model.prediction)
 
         lr = .0000025
@@ -270,10 +278,18 @@ if __name__ == "__main__":
             traj_model = traj_model.to('cuda')
             traj_model.norm = tuple(n.cuda() for n in traj_model.norm)
         # trainer.pretrain(traj_model, opt_traj, epochs=30, batch_size=64)
-        if nn_type == 'LSTM': 
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.1)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.02)
-            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=256, sub_chance=.01)
+        if nn_type == 'LSTM':   
+            lr = .00001
+            opt_traj2 = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.01)
+            # trainer.pretrain(traj_model, opt_traj2, epochs=1, batch_size=512)      
+            # lr = .0000025
+            lr = .000025
+            opt_traj = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
+            trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=200, batch_size=8, sub_chance=.1)
+            # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=200, batch_size=512, sub_chance=1)
+            # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.1)
+            # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=256, sub_chance=.02)
+            # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=40, batch_size=256, sub_chance=.01)
             # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
             trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=200, batch_size=8)
             trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=4)

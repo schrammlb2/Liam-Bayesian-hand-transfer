@@ -156,7 +156,8 @@ class TrajModelTrainer():
     def get_norms(self, episodes, held_out):
         full_dataset = episodes
 
-        val_size = int(len(episodes)*held_out)
+        val_size = int(len(episodes)*held_out) -1
+        # pdb.set_trace()
 
         val_data = episodes[-val_size:]
         val_data = val_data[:min(10, len(val_data))]

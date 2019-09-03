@@ -33,6 +33,8 @@ if len(argv) > 3 and argv[3] != '_' and 'transfer' in task:
     method = argv[3]
 if len(argv) > 4 and argv[4] != '_':
     bayes = bool(argv[4])
+if len(argv) > 5 and argv[5] != '_':
+    nn_type = argv[5]
 
 # assert task in ['real_A', 'real_B','transferA2B','transferB2A']
 

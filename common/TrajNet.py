@@ -308,6 +308,45 @@ class LSTMStateTrajNet(torch.nn.Module):
             return out
         return out, (h1,h2)
 
+
+class CumulativeLSTMStateTrajNet(LSTMStateTrajNet):
+    def __init__(self, task, norms, model = None ,state_dim = 4, action_dim = 2, task_ofs = 10, reg_loss = None):
+        super(CumulativeLSTMStateTrajNet, self).__init__(task, norms)
+        self.task_ofs = task_ofs
+        self.state_dim = state_dim
+        self.task = task
+        self.action_dim = action_dim
+        # self.action_dim = 2
+        self.dtype = torch.float
+
+        self.norm = norms
+        self.reg_loss = reg_loss 
+        self.LSTM = False
+        h = 100
+        self.h = h
+        # self.l1 = torch.nn.GRU(action_dim+state_dim, state_dim, dropout = .1, batch_first = True)
+        self.l1 = torch.nn.GRU(action_dim+state_dim, h, dropout = .25, batch_first = True, num_layers=2)
+        self.l2 = torch.nn.GRU(h, state_dim, dropout = .25, batch_first = True)
+        self.prediction = 'delta'
+        self.model = pt_build_model('1', state_dim + action_dim, state_dim, dropout_p=.1)
+
+    def run_traj(self, batch, threshold = 50, sub_chance = 0.0):
+        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm 
+        inpt = batch[...,:self.state_dim+self.action_dim]
+
+        state0 = batch[...,0,:self.state_dim]
+        state_stack = torch.stack([state0]*batch.shape[-2],-2)
+        actions = batch[...,self.state_dim:self.state_dim+self.action_dim]
+        inpt = torch.cat([state_stack, actions], -1)
+
+        inpt = z_score_normalize(inpt, x_mean_arr, x_std_arr)
+        deltas2  = self.forward(inpt)
+        deltas2 = z_score_denormalize(deltas2, y_mean_arr, y_std_arr)
+        distance = torch.cumsum(deltas2, dim=-2)
+        out = distance + state_stack
+        return out
+
+
 class LSTMTrajNet(LSTMStateTrajNet):
     def __init__(self, task, norms, model = None ,state_dim = 4, action_dim = 2, task_ofs = 10, reg_loss = None):
         super(LSTMTrajNet, self).__init__(task, norms)
