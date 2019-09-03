@@ -39,7 +39,7 @@ if len(argv) > 4 and argv[4] != '_':
 if len(argv) > 5 and argv[5] != '_':
     suffix = argv[5]
 
-assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B', 'acrobot_A']
+# assert task in ['real_A', 'real_B', 'transferA2B', 'transferB2A', 'sim_A', 'sim_B', 'acrobot_A', 'acrobot_B']
 
 
 
@@ -67,9 +67,14 @@ reg_loss = None
 
 
 save_path = 'save_model/robotic_hand_real/pytorch'
+
 if 'acrobot' in task:
+    if task[-1] == 'B':
+        # datafile_name = 'data/acrobot/base_acrobot/acrobot_data_v2_d4'
+        datafile_name = 'data/acrobot/heavy_acrobot/acrobot_data.pkl'
+        save_file = save_path+'/acrobot_A'+ '_heldout0.1_' + nn_type + '.pkl' 
     if task[-1] == 'A':
-        datafile_name = 'data/acrobot/acrobot_data_v2_d4'
+        datafile_name = 'data/acrobot/long_acrobot/acrobot_data.pkl'
         save_file = save_path+'/acrobot_B'+ '_heldout0.1_' + nn_type + '.pkl'    
 elif 'sim' not in task:
     if task[-1] == 'B':
@@ -96,6 +101,8 @@ model_save_path = save_path+'/'+ task + '_heldout' + str(held_out)+ '_' + nn_typ
 with open(datafile_name, 'rb') as pickle_file:
     out = pickle.load(pickle_file, encoding='latin1')
 
+# pdb.set_trace()
+
 if 'transfer' in task:
     with open(save_file, 'rb') as pickle_file:
         if cuda: model = torch.load(pickle_file)
@@ -106,8 +113,9 @@ if 'transfer' in task:
 
 
 
-if 'acrobot' in task:
-    out = [out]
+# if 'acrobot' in task:
+#     out = clean_data(out, cutoff = 99.6)
+
 model_save_path = model_save_path[:-4] + suffix + '.pkl'
 
 if task in ['real_B', 'sim_A', 'sim_B']:
@@ -119,12 +127,14 @@ new_state_dim = 4
 task_ofs = new_state_dim + action_dim
 
 length_threshold = 30
-out = list(filter(lambda x: len(x) > length_threshold, out))
-
+if 'acrobot' not in task:
+    out = list(filter(lambda x: len(x) > length_threshold, out))
+# pdb.set_trace()
 
 out = [torch.tensor(ep, dtype=dtype) for ep in out]
 # pdb.set_trace()
 if suffix != '':
+    print('shuffling')
     np.random.shuffle(out)
 
 def transfer(x, state_dim): 
@@ -158,29 +168,30 @@ if __name__ == "__main__":
 
     if 'transfer' in task:
         if method == 'traj_transfer':
-            # model.model = TrivialNet()
-            # traj_model = LatentNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
-            traj_model = LatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
-            # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
-            opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
-            trainer.pretrain(traj_model, opt, epochs=5, batch_size=64)
-            # trainer.pretrain(traj_model, opt, epochs=60, batch_size=64)
-            opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.00005, weight_decay=.001)
-            # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.00000000000000000000005, weight_decay=.001)
-            if held_out < .9:
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=70, batch_size=8)
+            pass
+            # # model.model = TrivialNet()
+            # # traj_model = LatentNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
+            # traj_model = LatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
+            # # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.000005, weight_decay=.001)
+            # opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
+            # trainer.pretrain(traj_model, opt, epochs=5, batch_size=64)
+            # # trainer.pretrain(traj_model, opt, epochs=60, batch_size=64)
+            # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.00005, weight_decay=.001)
+            # # opt_traj = torch.optim.Adam(traj_model.parameters(), lr=.00000000000000000000005, weight_decay=.001)
+            # if held_out < .9:
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=70, batch_size=8)
 
-            else:
-                # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=60, batch_size=32)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=80, batch_size=8)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=4)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=2)
-                trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=1)
-                # trainer.visualize(traj_model, val_data[0])
+            # else:
+            #     # trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=256)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=60, batch_size=32)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=80, batch_size=8)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=4)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=50, batch_size=2)
+            #     trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=30, batch_size=1)
+            #     # trainer.visualize(traj_model, val_data[0])
         elif method == 'traj_transfer_timeless' or method == 'traj_transfer_timeless_recurrent':
-            if method == 'traj_transfer_timeless':
+            if method in ['traj_transfer_timeless', 'traj_transfer_timeless_iterative']:
                 traj_model = TimeIndepLatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
             elif method == 'traj_transfer_timeless_recurrent':
                 traj_model = model
@@ -190,9 +201,17 @@ if __name__ == "__main__":
                 traj_model.task = task
                 traj_model.res = pt_build_model('1', state_dim + action_dim, state_dim, dropout_p=.1)
 
-            opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
-            trainer.pretrain(traj_model, opt, epochs=100, batch_size=64)
-            model.lyap = .993
+            if method == 'traj_transfer_timeless_iterative':
+                traj_model.steps = 5
+            else:
+                traj_model.steps = 1
+            opt = torch.optim.Adam(traj_model.parameters(), lr=lr/10, weight_decay=.001)
+            trainer.pretrain(traj_model, opt, epochs=5, batch_size=64)
+            model.coeff = .3
+            model.lyap = .9997
+            # opt = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
+            # trainer.pretrain(traj_model, opt, epochs=100, batch_size=64)
+            # model.lyap = .993
         # elif method == 'traj_transfer_timeless':
         #     traj_model = TimeIndepLatentDeltaNet(task, norm, model=model, state_dim=state_dim, action_dim=action_dim)
         #     opt = torch.optim.Adam(traj_model.parameters(), lr=lr/100, weight_decay=.001)
@@ -296,10 +315,21 @@ if __name__ == "__main__":
             trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=2)
             trainer.batch_train(traj_model, opt_traj, val_data=val_data, epochs=100, batch_size=1)
         else:
-            trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=64)
-            trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=64)
-            trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=64)
-            model= traj_model
+            if 'acrobot' in task:
+                batch_size = 512
+                lr = .0001
+                opt_traj = torch.optim.Adam(traj_model.parameters(), lr=lr, weight_decay=.001)
+                trainer.pretrain(traj_model, opt_traj, epochs=5, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=10, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=20, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=40, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=batch_size)
+            else:
+                batch_size = 64
+                trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=batch_size)
+                trainer.pretrain(traj_model, opt_traj, epochs=100, batch_size=batch_size)
 
 
             # opt = torch.optim.Adam(model.parameters(), lr=.000025, weight_decay=.001)

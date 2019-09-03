@@ -40,7 +40,8 @@ if len(argv) > 5 and argv[5] != '_':
 
 
 save_path = 'save_model/robotic_hand_real/pytorch/'
-
+if 'acrobot' in task:
+    save_path = 'save_model/robotic_hand_real/pytorch/'
 # model_loc_map = {'real_A': ('save_model/robotic_hand_real/A/pos', 'save_model/robotic_hand_real/A/load'),
 #     'real_B': ('save_model/robotic_hand_real/B/pos', 'save_model/robotic_hand_real/B/load'),
 #     'sim_s1' : ('save_model/robotic_hand_simulator/A/d4_s1_pos', 'save_model/robotic_hand_simulator/A/d4_s1_load'),
@@ -57,8 +58,12 @@ trajectory_path_map = {#'real_A': 'data/robotic_hand_real/A/t42_cyl45_right_test
     'sim_B' : 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj',
     'sim_cont': 'data/robotic_hand_simulator/sim_data_cont_v0_d4_m1_episodes.obj',
     'sim_transferA2B': 'data/robotic_hand_simulator/B/sim_data_discrete_v14_d4_m1_modified_episodes.obj', 
-    'sim_transferB2A' : 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj'
+    'sim_transferB2A' : 'data/robotic_hand_simulator/A/sim_data_discrete_v14_d4_m1_episodes.obj',
     # 'sim_s10' : 'data/robotic_hand_simulator/A/test_trajectory/jt_path'+str(1)+'_v14_m10.pkl'
+    'acrobot_transferA2B': 'data/acrobot/heavy_acrobot/acrobot_data.pkl',
+    'acrobot_transferB2A': 'data/acrobot/long_acrobot/acrobot_data.pkl',
+    'acrobot_B': 'data/acrobot/heavy_acrobot/acrobot_data.pkl',
+    'acrobot_A': 'data/acrobot/long_acrobot/acrobot_data.pkl'
     }
 trajectory_path = trajectory_path_map[task]
 
@@ -96,8 +101,14 @@ def make_traj(trajectory, test_traj):
     
 #     return np.append(real_positions[:len(acts)], acts, axis=1)
 def make_traj_sim(trajectory, test_traj):
+    # out = list(filter(lambda x: len(x) > length_threshold, trajectory))
     # pdb.set_trace()
-    out = clean_data(trajectory)
+    traj = trajectory
+    if 'acrobot' in task:
+        traj = trajectory[:-2]
+    # if 'sim' in task:
+    # out = clean_data(traj, cutoff = .05, cut = 'Absolute')
+    out = clean_data(traj, cutoff = 99.6)
     out = out[-test_traj][...,:6]
     # out = clean_data(out)
     return out
@@ -180,8 +191,8 @@ max_mses = []
 mses = []
 threshold = None
 
-for test_traj in range(4):
-    if 'sim' in task:
+for test_traj in range(100):
+    if 'sim' in task or 'acrobot' in task:
         # ground_truth = make_traj_sim(trajectory)
         ground_truth = make_traj_sim(trajectory, test_traj)
         # pdb.set_trace()
@@ -195,6 +206,7 @@ for test_traj in range(4):
     model.task = task
     # pdb.set_trace()
 
+    model.coeff = .3
     # model.coeff = -.3#.45
     # if method == 'traj_transfer_timeless':
     #     model.coeff = .45
@@ -215,7 +227,7 @@ for test_traj in range(4):
     if task[-1] == 'A':
         gt = transfer(gt, state_dim)
 
-    model.coeff = .3
+    model.eval()
 
     states = model.run_traj(gt, threshold=threshold)
     states = states.squeeze(0)
@@ -228,8 +240,10 @@ for test_traj in range(4):
 
     plt.figure(1)
     plt.scatter(ground_truth[0, 0], ground_truth[0, 1], marker="*", label='start')
-    plt.plot(ground_truth[:duration, 0], ground_truth[:duration, 1], color='blue', label='Ground Truth', marker='.')
-    plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+    # plt.plot(ground_truth[:duration, 0], ground_truth[:duration, 1], color='blue', label='Ground Truth', marker='.')
+    # plt.plot(states[:, 0], states[:, 1], color='red', label='NN Prediction')
+    plt.plot(ground_truth[:duration, 2], ground_truth[:duration, 3], color='blue', label='Ground Truth', marker='.')
+    plt.plot(states[:, 2], states[:, 3], color='red', label='NN Prediction')
 
     plt.axis('scaled')
     plt.title('Duration: ' + str(duration) + '.\nFinished: ' + str(finished))

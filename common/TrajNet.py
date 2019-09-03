@@ -69,6 +69,7 @@ class TrajNet(torch.nn.Module):
 
         # if 'transfer' in self.task:
         #     batch = transfer(batch, self.state_dim)
+        batch[...,1:, :self.state_dim]*=0
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         true_states = batch[...,:,:self.state_dim]
         state = batch[...,0,:self.state_dim]
@@ -542,8 +543,53 @@ class LatentDeltaNet(torch.nn.Module):
             self.model = self.model.to('cuda')
 
         self.coeff = 1
+        self.steps = 1
 
 
+
+    # def run_traj(self, batch, threshold = 50, sub_chance=0.0):
+    #     if batch.shape[0] == 1:
+    #         batch = batch.squeeze(0)
+    #     x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
+    #     true_states = batch[...,:self.state_dim]
+    #     actions = batch[...,self.state_dim:self.state_dim+self.action_dim]
+
+    #     # encoded_true_states = self.encoder(true_states)
+
+    #     # pass_batch = torch.cat([encoded_true_states, actions], -1)
+    #     pass_batch = batch[...,:self.state_dim+self.action_dim]
+    #     # pass_batch = self.encoder(pass_batch)
+    #     # projected_states = self.model.run_traj(pass_batch, threshold=threshold, sub_chance=sub_chance)
+    #     projected_states = self.model.run_traj(pass_batch, threshold=None, sub_chance=sub_chance)
+    #     states = projected_states
+    #     # mod_actions = actions.view(-1, actions.shape[-2], actions.shape[-1])[:, :projected_states.shape[1]]
+    #     mod_actions = actions[..., :projected_states.shape[-2], :]
+    #     if projected_states.shape[0] == 1:
+    #         projected_states = projected_states.squeeze(0)
+    #     # pdb.set_trace()
+    #     projected_states = torch.cat([projected_states, mod_actions], -1)
+
+    #     projected_states = z_score_normalize(projected_states, x_mean_arr, x_std_arr)
+    #     deltas = self.decoder(projected_states)
+    #     deltas2 = z_score_denormalize(deltas, y_mean_arr, y_std_arr)*self.coeff
+    #     distance = []
+    #     prev_dis = 0
+    #     # self.lyap = .9997
+    #     self.lyap = .97
+    #     # self.lyap =  1
+    #     for i in range(deltas2.shape[-2]):
+    #         dis = prev_dis*self.lyap + deltas2[...,i,:]
+    #         distance.append(dis)
+    #         prev_dis = dis
+    #     distance = torch.stack(distance, -2)
+
+    #     if distance.shape != torch.cumsum(deltas2, dim=-2).shape:
+    #         pdb.set_trace()
+    #     # distance = torch.cumsum(deltas2, dim=-2)
+    #     # pdb.set_trace()
+    #     states  = distance + states 
+
+    #     return states
 
     def run_traj(self, batch, threshold = 50, sub_chance=0.0):
         if batch.shape[0] == 1:
@@ -559,7 +605,24 @@ class LatentDeltaNet(torch.nn.Module):
         # pass_batch = self.encoder(pass_batch)
         # projected_states = self.model.run_traj(pass_batch, threshold=threshold, sub_chance=sub_chance)
         projected_states = self.model.run_traj(pass_batch, threshold=None, sub_chance=sub_chance)
-        states = projected_states
+
+        try: 
+            steps = self.steps
+        except:
+            steps = 1
+
+        if steps == 0:
+            coeff = 0
+        else:
+            coeff = self.coeff/steps
+
+        return self.move_traj(actions, projected_states, coeff, steps)
+
+    def move_traj(self, actions, states, coeff, steps):
+        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
+        if steps == 0:
+            return states
+        projected_states = states
         # mod_actions = actions.view(-1, actions.shape[-2], actions.shape[-1])[:, :projected_states.shape[1]]
         mod_actions = actions[..., :projected_states.shape[-2], :]
         if projected_states.shape[0] == 1:
@@ -569,11 +632,11 @@ class LatentDeltaNet(torch.nn.Module):
 
         projected_states = z_score_normalize(projected_states, x_mean_arr, x_std_arr)
         deltas = self.decoder(projected_states)
-        deltas2 = z_score_denormalize(deltas, y_mean_arr, y_std_arr)*self.coeff
+        deltas2 = z_score_denormalize(deltas, y_mean_arr, y_std_arr)*coeff
         distance = []
         prev_dis = 0
         # self.lyap = .9997
-        self.lyap = .97
+        self.lyap = .993
         # self.lyap =  1
         for i in range(deltas2.shape[-2]):
             dis = prev_dis*self.lyap + deltas2[...,i,:]
@@ -586,8 +649,7 @@ class LatentDeltaNet(torch.nn.Module):
         # distance = torch.cumsum(deltas2, dim=-2)
         # pdb.set_trace()
         states  = distance + states 
-
-        return states
+        return self.move_traj(actions, states, coeff, steps-1)
 
     def forward(self, x):
         state = x[...,:self.state_dim]
@@ -622,25 +684,25 @@ class TimeIndepLatentDeltaNet(LatentDeltaNet):
 
 
 
-class TimeIndepChainedLatentDeltaNet(TrajNet):
-    def __init__(self, task, norms, model = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
-        super(TimeIndepChainedLatentDeltaNet, self).__init__(task, norms, model = model, state_dim = state_dim, 
-            action_dim = action_dim, task_ofs = task_ofs, reg_loss = reg_loss)
-        # self.task = task
-        # self.state_dim = state_dim
-        # self.action_dim = action_dim
-        # self.dtype = torch.float
-        # self.norm = norms
-        self.decoder = TrajNet(task, norms,state_dim=state_dim, action_dim=action_dim)
-        # self.coeff = 1
-        # for param in self.model.parameters():
-        #     param.requires_grad = False
+# class TimeIndepChainedLatentDeltaNet(TrajNet):
+#     def __init__(self, task, norms, model = None, state_dim = 4, action_dim = 6, task_ofs = 10, reg_loss = None):
+#         super(TimeIndepChainedLatentDeltaNet, self).__init__(task, norms, model = model, state_dim = state_dim, 
+#             action_dim = action_dim, task_ofs = task_ofs, reg_loss = reg_loss)
+#         # self.task = task
+#         # self.state_dim = state_dim
+#         # self.action_dim = action_dim
+#         # self.dtype = torch.float
+#         # self.norm = norms
+#         self.decoder = TrajNet(task, norms,state_dim=state_dim, action_dim=action_dim)
+#         # self.coeff = 1
+#         # for param in self.model.parameters():
+#         #     param.requires_grad = False
 
 
-    def forward(self, x):
-        # if 'transfer' in self.task:
-        #     x = transfer(x, self.state_dim)
-        out = super().forward(x)
-        out += self.decoder(x)*0
-        # .decoder(x)*0#self.coeff
-        return out
+#     def forward(self, x):
+#         # if 'transfer' in self.task:
+#         #     x = transfer(x, self.state_dim)
+#         out = super().forward(x)
+#         out += self.decoder(x)*0
+#         # .decoder(x)*0#self.coeff
+#         return out

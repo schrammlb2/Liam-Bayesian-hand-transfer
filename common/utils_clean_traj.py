@@ -14,14 +14,17 @@ cuda = torch.cuda.is_available()
 dtype = torch.float
 
 
-def clean_data(episodes):
+def clean_data(episodes, cutoff=99.84, cut = 'Relative'):
     DATA = np.concatenate(episodes)
     yd_pos = DATA[:, -4:-2] - DATA[:, :2]
-    y2 = np.sum(yd_pos**2, axis=1)
-    max_dist = np.percentile(y2, 99.84)
+    if cut == 'Relative':
+        y2 = np.sum(yd_pos**2, axis=1)
+        max_dist = np.percentile(y2, cutoff)
+    else:
+        max_dist = cutoff
     # max_dist = np.percentile(y2, 99.6)
 
-    skip_list = [np.sum((ep[:, -4:-2] - ep[:, :2])**5, axis=1)>max_dist for ep in episodes]
+    skip_list = [np.sum((ep[:, -4:-2] - ep[:, :2])**2, axis=1)>max_dist for ep in episodes]
     divided_episodes = []
     for i,ep in enumerate(episodes):
         if np.sum(skip_list[i]) == 0:
@@ -165,6 +168,8 @@ class TrajModelTrainer():
 
         DATA = np.concatenate(episodes)
         FULL_DATA = np.concatenate(full_dataset)
+
+        print('Portion of data used: ' + str(len(DATA)/len(FULL_DATA)))
 
         x_data = DATA[:, :self.task_ofs]
         y_data = DATA[:, -self.new_state_dim:] - DATA[:, :self.new_state_dim]
