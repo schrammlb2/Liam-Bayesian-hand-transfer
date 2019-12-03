@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import pdb
 import numpy as np
+import gpytorch
 
 dtype = torch.float
 
@@ -142,6 +143,17 @@ class LSTMNet(torch.nn.Module):
 
 #         return out
 
+class ExactGPModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood=gpytorch.likelihoods.GaussianLikelihood()):
+        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
 
 def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
     if nn_type == '0':
@@ -165,6 +177,17 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
               # torch.nn.SELU(),
               # torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, output_dim),
+        )
+        model = torch.nn.Sequential(
+              torch.nn.Linear(input_dim, 512),
+              torch.nn.ReLU(),
+              torch.nn.Dropout(dropout_p),
+              torch.nn.Linear(512, 512),
+              torch.nn.ReLU(),
+              torch.nn.Dropout(dropout_p),
+              # torch.nn.SELU(),
+              # torch.nn.AlphaDropout(dropout_p),
+              torch.nn.Linear(512, output_dim),
         )
     elif nn_type == '2':
         return SplitModel(input_dim, output_dim, dropout_p)

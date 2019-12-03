@@ -91,14 +91,14 @@ class TrajModelTrainer():
 
 
 
-    def pretrain(self, model, opt, train_load = True, epochs = 30, batch_size = 64):
+    def pretrain(self, model, opt, train_load = True, epochs = 30, batch_size = 64, clip_grad_norm=True, loss_fn = torch.nn.MSELoss()):
         if cuda: 
             self.x_data=self.x_data.to('cuda')
             self.y_data=self.y_data.to('cuda')
         dataset = torch.utils.data.TensorDataset(self.x_data, self.y_data)
         loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size)
-        loss_fn = torch.nn.MSELoss()
 
+        # pdb.set_trace()
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         for i in range(epochs):
             print("Pretraining epoch: " + str(i))
@@ -107,18 +107,9 @@ class TrajModelTrainer():
                 opt.zero_grad()
 
                 if self.nn_type == 'LSTM':
-                    # output, hidden = model(sample[0])
                     output = model(sample[0])
-
-                    # output = output - sample[0][...,:self.state_dim]
-                    # output = z_score_denormalize(output, x_mean_arr, x_mean_arr)
-                    # output = z_score_normalize(output, y_mean_arr, y_mean_arr)
                 else:
                     output = model(sample[0])
-
-
-                # if self.task in ['transferA2B', 'transferB2A']: 
-                #     output *= torch.tensor([-1,-1,1,1], dtype=dtype)
 
                 loss = loss_fn(output, sample[1]) 
                 if self.reg_loss != None: 

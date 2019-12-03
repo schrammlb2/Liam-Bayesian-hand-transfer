@@ -67,8 +67,6 @@ class TrajNet(torch.nn.Module):
             batch = inbatch
 
 
-        # if 'transfer' in self.task:
-        #     batch = transfer(batch, self.state_dim)
         x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
         true_states = batch[...,:,:self.state_dim]
         state = batch[...,0,:self.state_dim]
@@ -82,9 +80,6 @@ class TrajNet(torch.nn.Module):
             states.append(state)
             action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
 
-            # if 'transfer' in self.task:
-            #     action[...,:2]*= -1
-
             if cuda: action = action.cuda() 
             inpt = torch.cat((state, action), -1)
 
@@ -93,12 +88,7 @@ class TrajNet(torch.nn.Module):
 
             state_delta = self.forward(inpt)
 
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)#*2
-            # state_delta[...,0] *= 1.1
-            # state_delta[...,1] *= 1.05
-
-            # state_delta[...,0] *= 2
-            # state_delta[...,1] *= 1.2
+            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
 
             sim_deltas.append(state_delta)
 
@@ -132,85 +122,31 @@ class TrajNet(torch.nn.Module):
 
 
 
-class NBackNet(TrajNet):
-    def __init__(self, task, norms, model = None ,state_dim = 4, action_dim = 2, task_ofs = 10, reg_loss = None, n=5):
-        super(NBackNet, self).__init__()
-        self.task_ofs = task_ofs
-        self.state_dim = state_dim
-        self.task = task
-        # self.action_dim = action_dim
-        self.action_dim = 2
-        self.dtype = torch.float
-
-        self.norm = norms
-        self.reg_loss = reg_loss   
-        self.n = n
-        if model:
-            self.model = model
-        else:
-            self.model = pt_build_model('1', (state_dim + action_dim)*5, state_dim, dropout_p=.1)
-
-    def run_traj(self, batch, threshold = 50, sub_chance = 0.0, n=5):
-        if len(batch.shape) == 2:
-            batch = batch.unsqueeze(0)
-
-        # if 'transfer' in self.task:
-        #     batch = transfer(batch, self.state_dim)
-        x_mean_arr, x_std_arr, y_mean_arr, y_std_arr = self.norm
-        true_states = batch[...,:self.state_dim]
-        state = batch[...,0,:self.state_dim]
-        states = []#state.view(1, self.state_dim)
-        sim_deltas = []
-        if cuda:
-            state = state.cuda()
-            true_states = true_states.cuda()
-
-        state_action = batch[...,0,:self.state_dim+self.action_dim]
-        nback = torch.stack([state_action]*self.n, -2)
-
-        for i in range(batch.shape[1]):
-            states.append(state)
-
-            if random.random() < sub_chance: 
-                state=true_states[:,i]
-
-            action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
-            # action = batch[...,i,self.state_dim:self.state_dim+self.action_dim]
-            if cuda: action = action.cuda() 
-
-            inpt = torch.cat((state, action), -1)
-            inpt = z_score_norm_single(inpt, x_mean_arr, x_std_arr)
-            inpt = inpt.unsqueeze(1)
-
-            inpt = torch.cat([nback[:,1:], inpt], 1)
-            model_inpt = inpt.view(inpt.shape[0], -1)
-
-            state_delta = self.model(model_inpt)
-
-            state_delta = z_score_denorm_single(state_delta, y_mean_arr, y_std_arr)
-            sim_deltas.append(state_delta)
-
-            state= state_delta + state
-
-            #May need random component here to prevent overfitting
-            if threshold and i%10:
-                with torch.no_grad():
-                    mse_fn = torch.nn.MSELoss()
-                    mse = mse_fn(state[...,:2], true_states[...,i,:2])
-                if mse > threshold:
-                    states = torch.stack(states, -2)
-                    return states
-
-        states = torch.stack(states, -2)
-        return states
-
+class ScaleNet(TrajNet):
     def forward(self, x):
-        nback = torch.cat([x]*self.n, -1)
+        out = self.model(x)
+        try:
+            if self.res != None:
+                if self.training:
+                    out += self.res(x)*self.coeff
+                else:
+                    r = self.res(x)
+                    residual = r/(1+r)
+                    return out + residual
+        except Exception as e:
+            pass
+        return out
 
-        # if 'transfer' in self.task:
-        #     nback = transfer(nback, self.state_dim)
-        return self.model(nback)
 
+class GPNetclass(TrajNet):
+    def forward(self, x):
+        out = self.model(x)
+        try:
+            if self.res != None:
+                out += self.res(x)
+        except Exception as e:
+            pass
+        return out
 
 # class LSTMStateTrajNet(TrajNet):
 class LSTMStateTrajNet(torch.nn.Module):
