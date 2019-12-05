@@ -47,7 +47,12 @@ elif 'cartpole' in task:
 with open(task_loc, 'rb') as pickle_file:
     task_dict = pickle.load(pickle_file)
 
-with open(task_dict['test_' + task[-1]], 'rb') as pickle_file:
+base_version = task[-1]
+target_version = 'B' if task[-1] == 'A' else 'A'
+
+traj_filename = task_dict['test_' + target_version]
+print(traj_filename)
+with open(traj_filename, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
 def make_traj(trajectory, test_traj):
@@ -70,11 +75,12 @@ mse_fn = torch.nn.MSELoss()
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991,.99,.98,.97,.96,.95]
 
 held_out_list = [.997,.996,.995,.994,.992,.991,.99]#,.98,.97,.96,.95,.94,.93,.92,.91,.9]
-held_out_list = [.99,.98,.97]
+# held_out_list = [.99,.98,.97]
+# held_out_list = [.998,.997,.996,.995,.994,.993,.992,.991]
 
 def build_gp(model, held_out):
 
-    with open(task_dict['train_' + task[-1]], 'rb') as pickle_file:
+    with open(task_dict['train_' + target_version], 'rb') as pickle_file:
         out = pickle.load(pickle_file, encoding='latin1')
     
     task_ofs = state_dim + action_dim
@@ -97,17 +103,25 @@ def build_gp(model, held_out):
 
     res_train_y = train_y - traj_model(train_x)
 
+    # likelihood = gpytorch.likelihoods.GaussianLikelihood()
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     res_model =  ExactGPModel(train_x, res_train_y, likelihood=likelihood)
 
     res_model.train()
+
+    hypers = {
+        'likelihood.noise_covar.noise': torch.tensor(.001),
+        'covar_module.base_kernel.lengthscale': torch.tensor(2.8),
+    }
+    res_model.initialize(**hypers)
+
     opt = torch.optim.Adam([
         {'params': res_model.parameters()},  # Includes GaussianLikelihood parameters
     ], lr=0.1)
     
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, res_model)
 
-    training_iter = 50
+    training_iter = 1
     for i in range(training_iter):
         # Zero gradients from previous iteration
         opt.zero_grad()
@@ -162,11 +176,11 @@ def duration_lc(task, threshold, method=None):
 
         for suffix in range(suffixes):
             if method == 'direct':
-                model_save_path = save_path+ task[:-len('transferA2B')] + 'A' + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
+                model_save_path = save_path+ task[:-len('transferA2B')] + base_version + '_heldout' + str(held_out)+ '_' + nn_type + '.pkl'
             elif method == 'gp':
-                model_save_path = save_path+ task[:-len('transferA2B')] + 'A' + '_heldout' + str(.1)+ '_' + nn_type + '.pkl'
+                model_save_path = save_path+ task[:-len('transferA2B')] + base_version + '_heldout' + str(.1)+ '_' + nn_type + '.pkl'
             elif method== None:
-                model_save_path = save_path+ task[:-1] + 'B' + '_heldout' + str(held_out)+ '_' + nn_type + str(suffix) + '.pkl'                
+                model_save_path = save_path+ task[:-1] + target_version + '_heldout' + str(held_out)+ '_' + nn_type + str(suffix) + '.pkl'                
             else:
                 model_save_path = save_path+ task + '_' + method +  '_heldout' + str(held_out)+ '_' + nn_type + str(suffix)+ '.pkl'
 
@@ -186,13 +200,16 @@ def duration_lc(task, threshold, method=None):
                 ground_truth = make_traj(trajectory, test_traj)
                 ground_truth = ground_truth[:len(ground_truth)]
 
-                # states = model.run_traj(torch.tensor(ground_truth, dtype=dtype), threshold=threshold)
-                # states = states.squeeze(0)
-                # states = states.detach().numpy()
-                # duration = states.shape[-2]
-                # finished = duration == ground_truth.shape[0]
-
                 states, finished, duration = run_traj(task, model, torch.tensor(ground_truth, dtype=dtype), threshold=threshold)
+                # if method == 'direct':
+                states = states.detach().numpy()
+                # if method != None:
+                #     plt.close()
+                #     plt.figure(1)
+                #     plt.plot(ground_truth[:duration, 0], ground_truth[:duration, 1], color='blue', label='Ground Truth', marker='.')
+                #     plt.plot(states[:duration, 0], states[:duration, 1], color='red', label='NN Prediction')
+                #     plt.axis('scaled')
+                #     plt.show()
 
                 durs.append(duration)
 
@@ -217,10 +234,10 @@ def duration_lc(task, threshold, method=None):
 single_shot = False
 
 # lc_nl_trans = get_lc('transferB2A')
-methods = ['gp','direct', 'traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive']
+methods = ['gp', 'direct', 'traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive']
 # methods = ['traj_transfer_timeless']
 
-threshold = .0002
+threshold = .001
 
 
 lc_mean, lc_err = duration_lc(task, threshold)

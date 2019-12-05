@@ -53,8 +53,8 @@ cuda = False
 reg_loss = None
 
 
-base_epochs = 2
-base_lr = .000025
+base_epochs = 20
+base_lr = .00005
 
 
 base = 'data/'

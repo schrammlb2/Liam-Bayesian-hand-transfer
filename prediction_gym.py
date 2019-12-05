@@ -32,7 +32,7 @@ if len(argv) > 3 and argv[3] != '_' and 'transfer' in task:
     method = 'retrain'
     method = argv[3]
 if len(argv) > 4 and argv[4] != '_':
-    bayes = bool(argv[4])
+    suffix = argv[4]
 
 
 
@@ -55,12 +55,15 @@ datafile_name = task_dict['test_' + task[-1]]
 save_path = 'save_model/robotic_hand_real/pytorch/'
 if 'transfer' in task: 
     save_file = save_path + task[:-len('transferA2B')] + task[-3] + '_heldout0.1_1.pkl'
-    model_save_path = save_path+ task + '_' + method +  '_heldout' + str(held_out)+ '_' + nn_type + suffix+ '.pkl'
+    if method == 'direct':
+        model_save_path = save_path+ task[:-len('transferA2B')] + task[-3] +  '_heldout' + str(held_out)+ '_' + nn_type + suffix+ '.pkl'        
+    else:
+        model_save_path = save_path+ task + '_' + method +  '_heldout' + str(held_out)+ '_' + nn_type + suffix+ '.pkl'
 else:
     model_save_path = save_path+ task + '_heldout' + str(held_out)+ '_' + nn_type + suffix+ '.pkl'
 
 
-
+print(datafile_name)
 with open(datafile_name, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 

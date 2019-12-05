@@ -31,10 +31,19 @@ cartpole_dict = {
 	'action_dim': 1
 }
 
+bipedal_dict = {
+	'task' : 'bipedal', 
+	'state_dim': 24, 
+	'action_dim': 4
+}
+
 acrobot_dict.update(write_file_names('acrobot'))
 cartpole_dict.update(write_file_names('cartpole'))
 
 task_dict = acrobot_dict
+
+train_duration = 600
+test_duration = 400
 
 def build_env(env_name, version): 
 	if env_name == 'cartpole':
@@ -51,10 +60,15 @@ def build_env(env_name, version):
 		env = gym.make('Acrobot-v1')
 		env = gym.envs.classic_control.acrobot.AcrobotEnv()
 		env.dt = .02
-		env.torque_noise_max = .01
+		# env.torque_noise_max = .01
+		# env.torque_noise_max = 0
 		if version == 'B':
-			env.LINK_LENGTH_1 = .8
-			env.LINK_LENGTH_1 = 1.6
+			# env.LINK_LENGTH_1 = 1.5
+			env.LINK_LENGTH_1 = 1.05
+			env.LINK_COM_POS_1 = env.LINK_LENGTH_1/2
+			# env.LINK_LENGTH_2 = .75
+			env.LINK_LENGTH_2 = .95
+			env.LINK_COM_POS_2 = env.LINK_LENGTH_2/2
 
 		return env
 			
@@ -65,10 +79,11 @@ def observe(env):
 	state_dim = task_dict['state_dim']
 	rand = torch.distributions.multivariate_normal.MultivariateNormal(torch.zeros(state_dim), torch.eye(state_dim))
 	scale = .0001
+	# scale = 0
 	err = rand.sample()*scale
 	return env.state+err.numpy()
 
-def run_env(env_name, version, episodes=800, duration = 500, action_dur = 10):
+def run_env(env_name, version, episodes=800, duration = train_duration, action_dur = 10):
 	outstring = env_name + version + '\neps: ' + str(episodes) + '\nduration: ' + str(duration)
 	print('running : ' + outstring)
 	env = build_env(env_name, version)
@@ -99,25 +114,29 @@ def run_env(env_name, version, episodes=800, duration = 500, action_dur = 10):
 
 	return eps
 
-with open(base + 'acrobot_task', 'wb') as pickle_file:
-	pickle.dump(acrobot_dict, pickle_file)
+
+
+env_name = 'acrobot'
+
+with open(base + env_name + '_task', 'wb') as pickle_file:
+	pickle.dump(task_dict, pickle_file)
 # with open('data/cartpole_task') as pickle_file:
 # 	pickle.dump(cartpole_dict, pickle_file)
 
 
-acrobot_A_train = run_env('acrobot', 'A')
-with open(acrobot_dict['train_A'], 'wb') as pickle_file:
-	pickle.dump(acrobot_A_train, pickle_file)
+task_A_train = run_env(env_name , 'A')
+with open(task_dict['train_A'], 'wb') as pickle_file:
+	pickle.dump(task_A_train, pickle_file)
 
-acrobot_A_test = run_env('acrobot', 'A', episodes = 20, duration=200)
-with open(acrobot_dict['test_A'], 'wb') as pickle_file:
-	pickle.dump(acrobot_A_test, pickle_file)
+task_A_test = run_env(env_name , 'A', episodes = 20, duration=test_duration)
+with open(task_dict['test_A'], 'wb') as pickle_file:
+	pickle.dump(task_A_test, pickle_file)
 
 
-acrobot_B_train = run_env('acrobot', 'B')
-with open(acrobot_dict['train_B'], 'wb') as pickle_file:
-	pickle.dump(acrobot_B_train, pickle_file)
+task_B_train = run_env(env_name , 'B')
+with open(task_dict['train_B'], 'wb') as pickle_file:
+	pickle.dump(task_B_train, pickle_file)
 
-acrobot_B_test = run_env('acrobot', 'B', episodes = 20, duration=200)
-with open(acrobot_dict['test_B'], 'wb') as pickle_file:
-	pickle.dump(acrobot_B_test, pickle_file)			
+task_B_test = run_env(env_name , 'B', episodes = 20, duration=test_duration)
+with open(task_dict['test_B'], 'wb') as pickle_file:
+	pickle.dump(task_B_test, pickle_file)			
