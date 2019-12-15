@@ -30,7 +30,8 @@ if len(argv) > 3 and argv[3] != '_':
     method = 'retrain'
     method = argv[3]
 
-task = 'acrobot_A'
+# task = 'acrobot_A'
+task = 'hand_A'
 
 
 
@@ -38,11 +39,12 @@ save_path = 'save_model/robotic_hand_real/pytorch/'
 
 base = 'data/'
 
-
 if 'acrobot' in task:
     task_loc = base + 'acrobot_task'
 elif 'cartpole' in task:
     task_loc = base + 'cartpole_task'
+elif 'hand' in task:
+    task_loc = base + 'hand_task'
 
 with open(task_loc, 'rb') as pickle_file:
     task_dict = pickle.load(pickle_file)
@@ -55,9 +57,23 @@ print(traj_filename)
 with open(traj_filename, 'rb') as pickle_file:
     trajectory = pickle.load(pickle_file, encoding='latin1')
 
-def make_traj(trajectory, test_traj):
-    return trajectory[test_traj]
+# def make_traj(trajectory, test_traj):
+#     return trajectory[test_traj]
 
+def make_traj(trajectory, test_traj):
+    if 'hand' not in task: 
+        return trajectory[test_traj]
+    else:
+        real_positions = trajectory[0][test_traj]
+        acts = trajectory[1][test_traj]
+
+        # if task in ['real_B', 'transferA2B'] and test_traj == 0:
+        if task[-1] == 'B' and test_traj == 0:
+            start = 199
+            real_positions = trajectory[0][test_traj][start:]
+            acts = trajectory[1][test_traj][start:]
+        
+        return np.append(real_positions[:len(acts)], acts, axis=1)
 
 
 state_dim = task_dict['state_dim']
@@ -74,9 +90,10 @@ mse_fn = torch.nn.MSELoss()
 # held_out_list = [.99,.98,.97,.96,.95]#,.94,.93,.92,.91,.9]#,.8,.7,.6,.5,.4,.3,.2,.1]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991,.99,.98,.97,.96,.95]
 
-held_out_list = [.997,.996,.995,.994,.992,.991,.99]#,.98,.97,.96,.95,.94,.93,.92,.91,.9]
+# held_out_list = [.997,.996,.995,.994,.992,.991,.99]#,.98,.97,.96,.95,.94,.93,.92,.91,.9]
 # held_out_list = [.99,.98,.97]
 # held_out_list = [.998,.997,.996,.995,.994,.993,.992,.991]
+held_out_list = [.99,.96,.93,.9,.85,.8]
 
 def build_gp(model, held_out):
 
@@ -109,11 +126,11 @@ def build_gp(model, held_out):
 
     res_model.train()
 
-    hypers = {
-        'likelihood.noise_covar.noise': torch.tensor(.001),
-        'covar_module.base_kernel.lengthscale': torch.tensor(2.8),
-    }
-    res_model.initialize(**hypers)
+    # hypers = {
+    #     'likelihood.noise_covar.noise': torch.tensor(.001),
+    #     'covar_module.base_kernel.lengthscale': torch.tensor(2.8),
+    # }
+    # res_model.initialize(**hypers)
 
     opt = torch.optim.Adam([
         {'params': res_model.parameters()},  # Includes GaussianLikelihood parameters
@@ -121,7 +138,7 @@ def build_gp(model, held_out):
     
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, res_model)
 
-    training_iter = 1
+    training_iter = 10
     for i in range(training_iter):
         # Zero gradients from previous iteration
         opt.zero_grad()
@@ -237,7 +254,10 @@ single_shot = False
 methods = ['gp', 'direct', 'traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive']
 # methods = ['traj_transfer_timeless']
 
-threshold = .001
+if 'acrobot' in task: 
+    threshold = .001
+else: 
+    threshold = 10
 
 
 lc_mean, lc_err = duration_lc(task, threshold)

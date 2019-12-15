@@ -15,7 +15,7 @@ import gpytorch
 
 from sys import argv
 
-task = 'real_A' #Which task we're training. This tells us what file to use
+# task = 'real_A' #Which task we're training. This tells us what file to use
 outfile = None
 append = False
 held_out = .1
@@ -47,9 +47,9 @@ dropout_rate = .1
 l2_coeff = .01
 
 dtype = torch.float
-cuda = torch.cuda.is_available()
+# cuda = torch.cuda.is_available()
 print('cuda is_available: '+ str(cuda))
-cuda = False
+# cuda = False
 reg_loss = None
 
 
@@ -63,6 +63,8 @@ if 'acrobot' in task:
     task_loc = base + 'acrobot_task'
 elif 'cartpole' in task:
     task_loc = base + 'cartpole_task'
+elif 'hand' in task:
+    task_loc = base + 'hand_task'
 
 with open(task_loc, 'rb') as pickle_file:
     task_dict = pickle.load(pickle_file)

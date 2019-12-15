@@ -37,10 +37,17 @@ bipedal_dict = {
 	'action_dim': 4
 }
 
+hand_dict = {
+	'task' : 'hand', 
+	'state_dim': 4, 
+	'action_dim': 6
+}
+
+hand_dict.update(write_file_names('hand'))
+
 acrobot_dict.update(write_file_names('acrobot'))
 cartpole_dict.update(write_file_names('cartpole'))
 
-task_dict = acrobot_dict
 
 train_duration = 600
 test_duration = 400
@@ -117,6 +124,11 @@ def run_env(env_name, version, episodes=800, duration = train_duration, action_d
 
 
 env_name = 'acrobot'
+
+task_dict = acrobot_dict
+
+# env_name = 'hand'
+# task_dict = hand_dict
 
 with open(base + env_name + '_task', 'wb') as pickle_file:
 	pickle.dump(task_dict, pickle_file)

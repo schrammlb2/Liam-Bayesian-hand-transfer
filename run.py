@@ -1,5 +1,6 @@
 import os
 
+task = 'hand'
 
 # methods = ['retrain', 'constrained_restart', 'constrained_retrain', 'linear_transform', 'nonlinear_transform']
 methods = ['retrain']#, 'traj_transfer']
@@ -13,13 +14,14 @@ suffixes = 4
 # held_out_list = [.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
 # held_out_list = [.99,.98,.97]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991]#,.99]
-held_out_list = [.997,.996,.995,.994,.992,.991,.99]
+# held_out_list = [.997,.996,.995,.994,.992,.991,.99]
 # held_out_list = [.99, .98,.97,.96,.95,.94,.93,.92,.91,.9]#,.8,.7,.6,.5,.4,.3,.2,.1]
+held_out_list = [.99,.96,.93,.9,.85,.8]
 # held_out_list = [.998,.997,.996,.995,.994,.992,.992,.991,.99,.98,.97,.96,.95,.94,.93,.92,.91,.9,.8,.7,.6,.5,.4,.3,.2,.1]
 # real_base_command = 'python3 regression_gym.py acrobot_A '  
 # transfer_base_command = 'python3 regression_gym.py acrobot_transferB2A '
-real_base_command = 'python3 regression_gym.py acrobot_B '  
-transfer_base_command = 'python3 regression_gym.py acrobot_transferA2B '
+real_base_command = 'python3 regression_gym.py '+task+'_B '  
+transfer_base_command = 'python3 regression_gym.py '+task+'_transferA2B '
 
 train_base = True
 train_transfer = True
