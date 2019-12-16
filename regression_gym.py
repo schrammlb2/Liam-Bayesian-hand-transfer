@@ -132,7 +132,12 @@ if __name__ == "__main__":
             traj_model = traj_model.to('cuda')
             traj_model.norm = tuple(n.cuda() for n in traj_model.norm)
 
-        trainer.pretrain(traj_model, opt_traj, epochs=base_epochs, batch_size=64)
+        if held_out < .2:
+            epochs = base_epochs*2
+        else:
+            epochs = base_epochs
+
+        trainer.pretrain(traj_model, opt_traj, epochs=epochs, batch_size=64)
         # model= traj_model
 
 

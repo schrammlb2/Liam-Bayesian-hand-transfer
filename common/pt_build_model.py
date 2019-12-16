@@ -179,17 +179,17 @@ def pt_build_model(nn_type, input_dim, output_dim, dropout_p=.1):
               # torch.nn.AlphaDropout(dropout_p),
               torch.nn.Linear(128, output_dim),
         )
-        model = torch.nn.Sequential(
-              torch.nn.Linear(input_dim, 512),
-              torch.nn.ReLU(),
-              torch.nn.Dropout(dropout_p),
-              torch.nn.Linear(512, 512),
-              torch.nn.ReLU(),
-              torch.nn.Dropout(dropout_p),
-              # torch.nn.SELU(),
-              # torch.nn.AlphaDropout(dropout_p),
-              torch.nn.Linear(512, output_dim),
-        )
+        # model = torch.nn.Sequential(
+        #       torch.nn.Linear(input_dim, 512),
+        #       torch.nn.ReLU(),
+        #       torch.nn.Dropout(dropout_p),
+        #       torch.nn.Linear(512, 512),
+        #       torch.nn.ReLU(),
+        #       torch.nn.Dropout(dropout_p),
+        #       # torch.nn.SELU(),
+        #       # torch.nn.AlphaDropout(dropout_p),
+        #       torch.nn.Linear(512, output_dim),
+        # )
     elif nn_type == '2':
         return SplitModel(input_dim, output_dim, dropout_p)
 

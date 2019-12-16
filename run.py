@@ -6,7 +6,8 @@ task = 'hand'
 methods = ['retrain']#, 'traj_transfer']
 # methods = ['traj_transfer']
 # methods = ['traj_transfer_timeless']
-methods = ['traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive']
+methods = ['traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive', 'retrain']
+# methods = ['retrain']
 # methods = ['linear_transform']
 suffixes = 4
 
@@ -22,6 +23,9 @@ held_out_list = [.99,.96,.93,.9,.85,.8]
 # transfer_base_command = 'python3 regression_gym.py acrobot_transferB2A '
 real_base_command = 'python3 regression_gym.py '+task+'_B '  
 transfer_base_command = 'python3 regression_gym.py '+task+'_transferA2B '
+
+train_base = False
+train_transfer = False
 
 train_base = True
 train_transfer = True

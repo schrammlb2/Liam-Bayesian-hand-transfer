@@ -61,19 +61,20 @@ with open(traj_filename, 'rb') as pickle_file:
 #     return trajectory[test_traj]
 
 def make_traj(trajectory, test_traj):
-    if 'hand' not in task: 
-        return trajectory[test_traj]
-    else:
-        real_positions = trajectory[0][test_traj]
-        acts = trajectory[1][test_traj]
+    return trajectory[test_traj]
+    # if 'hand' not in task: 
+    #     return trajectory[test_traj]
+    # else:
+    #     real_positions = trajectory[0][test_traj]
+    #     acts = trajectory[1][test_traj]
 
-        # if task in ['real_B', 'transferA2B'] and test_traj == 0:
-        if task[-1] == 'B' and test_traj == 0:
-            start = 199
-            real_positions = trajectory[0][test_traj][start:]
-            acts = trajectory[1][test_traj][start:]
-        
-        return np.append(real_positions[:len(acts)], acts, axis=1)
+    #     # if task in ['real_B', 'transferA2B'] and test_traj == 0:
+    #     if task[-1] == 'B' and test_traj == 0:
+    #         start = 199
+    #         real_positions = trajectory[0][test_traj][start:]
+    #         acts = trajectory[1][test_traj][start:]
+    #     pdb.set_trace()
+    #     return np.append(real_positions[:len(acts)], acts, axis=1)
 
 
 state_dim = task_dict['state_dim']
@@ -155,7 +156,7 @@ def build_gp(model, held_out):
         opt.step()
 
     traj_model.res = res_model
-
+    traj_model.coeff = 1
     return traj_model
 
 def run_traj(task, model, traj, threshold=None):
@@ -251,6 +252,7 @@ def duration_lc(task, threshold, method=None):
 single_shot = False
 
 # lc_nl_trans = get_lc('transferB2A')
+methods = ['gp', 'direct', 'traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive', 'retrain']
 methods = ['gp', 'direct', 'traj_transfer_timeless_recurrent', 'traj_transfer_timeless', 'retrain_naive']
 # methods = ['traj_transfer_timeless']
 
