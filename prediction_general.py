@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import matplotlib.pyplot as plt
+import sys
 from common.data_normalization import z_score_normalize, z_score_denormalize
 import pdb
 
@@ -15,6 +16,8 @@ config = tf.ConfigProto(device_count={'GPU': 0})
 tf.keras.backend.set_floatx('float64')  # for input weights of NN
 
 task = 'real_A'
+
+data_size = 1380 #45 for sim, 1380 for real
 
 
 if len(argv) > 1:
@@ -121,6 +124,20 @@ with tf.Session(config=config) as sess:
         loads.append(next_load)
         state = np.append(np.append(next_pos, next_load), ground_truth[i + 1][state_dim:state_dim+act_dim])
         norm_state = z_score_normalize(np.asarray([state]), x_norm_arr[0], x_norm_arr[1])
+
+#calculate prediction error
+pos_guesses = np.reshape(poses, (data_size, 2))
+pos_truths = ground_truth[:, :2]
+pos_mse = ((pos_guesses - pos_truths)**2).mean(axis=None)
+print("Position MSE: ", pos_mse)
+load_guesses = np.reshape(loads, (data_size, 2))
+load_truths = ground_truth[:, 2:4]
+load_mse = ((load_guesses - load_truths)**2).mean(axis=None)
+print("Load MSE: ", load_mse)
+state_guesses = np.hstack((pos_guesses, load_guesses))
+state_truths = ground_truth[:, :4]
+state_mse = ((state_guesses - state_truths)**2).mean(axis=None)
+print("State MSE: ", state_mse)
 
 poses = np.asarray(poses)
 loads = np.asarray(loads)
